@@ -1,5 +1,0 @@
-task: run_integration_tests 
-  do: 
-    test_full_compilation() 
-    test_execution() 
-    speak "All integration tests passed." 

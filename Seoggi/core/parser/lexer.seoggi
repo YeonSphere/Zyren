@@ -1,0 +1,13 @@
+class Token {
+    type: string
+    value: string
+    line: int
+    column: int
+}
+
+class Lexer {
+    func tokenize(input: string) -> [Token] {
+        # TODO: Implement lexical analysis
+        return []
+    }
+}

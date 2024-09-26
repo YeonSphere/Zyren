@@ -1,7 +1,7 @@
-task: parse 
-  use: tokens 
-  do: 
-    ast = [] 
-    while tokens.length 
-      ast.append(parse_statement(tokens)) 
-    return ast 
+fn parse(tokens: list<Token>) -> AST {
+    // Parsing logic
+}
+
+struct AST {
+    // Define AST structure
+}

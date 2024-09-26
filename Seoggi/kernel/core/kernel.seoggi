@@ -1,0 +1,4 @@
+func kernel_main() {
+    print("Seoggi Kernel Initializing...")
+    # TODO: Implement kernel initialization
+}

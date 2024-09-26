@@ -1,6 +1,3 @@
-task: interpret 
-  use: source 
-  do: 
-    tokens = tokenize(source) 
-    ast = parse(tokens) 
-    execute(ast) 
+fn interpret(ast: AST) {
+    // Interpretation logic
+}

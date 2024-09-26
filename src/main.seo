@@ -1,3 +1,14 @@
-task: main 
-  do: 
-    speak "Hello, Seoggi!" 
+import lexer
+import parser
+import interpreter
+
+fn main() {
+    let source_code = read_file("path/to/source.seo")
+    let tokens = lexer::tokenize(source_code)
+    let ast = parser::parse(tokens)
+    interpreter::interpret(ast)
+}
+
+fn read_file(path: str) -> str {
+    // Code to read file content
+}

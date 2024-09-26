@@ -1,0 +1,9 @@
+module IO {
+    func print(message: string) {
+        # TODO: Implement print function
+    }
+ECHO is off.
+    func read_line() -> string {
+        # TODO: Implement read line function
+    }
+}

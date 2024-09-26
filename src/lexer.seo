@@ -1,7 +1,12 @@
-task: tokenize 
-  use: source 
-  do: 
-    tokens = [] 
-    for char in source: 
-      tokens.append(create_token(char)) 
-    return tokens 
+fn tokenize(source: str) -> list<Token> {
+    // Tokenization logic
+}
+
+struct Token {
+    type: TokenType
+    value: str
+}
+
+enum TokenType {
+    // Define token types
+}

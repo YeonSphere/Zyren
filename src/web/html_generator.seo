@@ -1,0 +1,3 @@
+fn generate_html(content: str) -> str {
+    // HTML generation logic
+}

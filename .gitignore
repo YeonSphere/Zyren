@@ -1,2 +1,13 @@
-*.seoc 
-__seoggi_cache__/ 
+# Ignore node_modules
+node_modules/
+
+# Ignore build output
+build/
+
+# Ignore logs
+logs/
+*.log
+
+# Ignore system files
+.DS_Store
+Thumbs.db
