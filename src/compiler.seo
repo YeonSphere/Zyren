@@ -1,0 +1,7 @@
+task: compile 
+  use: source 
+  do: 
+    tokens = tokenize(source) 
+    ast = parse(tokens) 
+    bytecode = generate_bytecode(ast) 
+    return bytecode 

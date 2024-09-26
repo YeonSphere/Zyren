@@ -1,0 +1,7 @@
+task: tokenize 
+  use: source 
+  do: 
+    tokens = [] 
+    for char in source: 
+      tokens.append(create_token(char)) 
+    return tokens 

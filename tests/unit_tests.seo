@@ -1,0 +1,6 @@
+task: run_tests 
+  do: 
+    test_lexer() 
+    test_parser() 
+    test_interpreter() 
+    speak "All unit tests passed." 

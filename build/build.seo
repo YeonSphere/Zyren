@@ -1,0 +1,5 @@
+task: build 
+  do: 
+    speak "Building Seoggi project..." 
+    compile_all_files() 
+    speak "Build completed." 

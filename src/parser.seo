@@ -1,0 +1,7 @@
+task: parse 
+  use: tokens 
+  do: 
+    ast = [] 
+    while tokens.length 
+      ast.append(parse_statement(tokens)) 
+    return ast 

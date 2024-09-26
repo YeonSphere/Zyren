@@ -1,0 +1,6 @@
+task: interpret 
+  use: source 
+  do: 
+    tokens = tokenize(source) 
+    ast = parse(tokens) 
+    execute(ast) 
