@@ -1,3 +1,0 @@
-fn process_data(raw_data: list) -> list {
-    // Data processing logic
-}

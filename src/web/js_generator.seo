@@ -1,3 +1,0 @@
-fn generate_js(script: str) -> str {
-    // JavaScript generation logic
-}

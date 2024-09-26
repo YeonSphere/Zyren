@@ -1,3 +1,0 @@
-fn interpret(ast: AST) {
-    // Interpretation logic
-}

@@ -1,7 +1,0 @@
-fn create_neural_network(layers: list) -> NeuralNetwork {
-    // Neural network creation logic
-}
-
-struct NeuralNetwork {
-    // Define neural network structure
-}

@@ -1,7 +1,0 @@
-fn parse(tokens: list<Token>) -> AST {
-    // Parsing logic
-}
-
-struct AST {
-    // Define AST structure
-}
