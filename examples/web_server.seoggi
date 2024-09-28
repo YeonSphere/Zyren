@@ -1,0 +1,18 @@
+import std.net.http
+import std.io
+
+fn main() {
+    let server = http.Server.new()
+
+    server.get("/", fn (req, res) {
+        res.send("Hello, World!")
+    })
+
+    server.get("/about", fn (req, res) {
+        res.send("This is a simple web server example in Seoggi.")
+    })
+
+    let port = 8080
+    println("Server starting on port {}", port)
+    server.listen(port)
+}

@@ -1,0 +1,47 @@
+import std.collections.HashMap
+import std.net
+
+struct NetworkInterface {
+    name: string
+    ip_address: string
+    mac_address: string
+    status: string
+}
+
+struct NetworkManager {
+    interfaces: HashMap<string, NetworkInterface>
+
+    fn new() -> NetworkManager {
+        return NetworkManager {
+            interfaces: HashMap<string, NetworkInterface>.new()
+        }
+    }
+
+    fn add_interface(self, interface: NetworkInterface) {
+        self.interfaces.insert(interface.name, interface)
+    }
+
+    fn remove_interface(self, interface_name: string) {
+        self.interfaces.remove(interface_name)
+    }
+
+    fn get_interface(self, interface_name: string) -> NetworkInterface? {
+        return self.interfaces.get(interface_name)
+    }
+
+    fn list_interfaces(self) -> [NetworkInterface] {
+        return self.interfaces.values()
+    }
+
+    fn update_interface_status(self, interface_name: string, new_status: string) {
+        if let Some(interface) = self.interfaces.get_mut(interface_name) {
+            interface.status = new_status
+        }
+    }
+}
+
+fn init_network_manager() -> NetworkManager {
+    let network_manager = NetworkManager.new()
+    println("Network Manager initialized")
+    return network_manager
+}

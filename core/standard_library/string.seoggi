@@ -1,0 +1,41 @@
+module String {
+    func length(s: string) -> int {
+        return __builtin_string_length(s)
+    }
+
+    func concat(s1: string, s2: string) -> string {
+        return __builtin_string_concat(s1, s2)
+    }
+
+    func substring(s: string, start: int, end: int) -> string {
+        return __builtin_string_substring(s, start, end)
+    }
+
+    func to_upper(s: string) -> string {
+        return __builtin_string_to_upper(s)
+    }
+
+    func to_lower(s: string) -> string {
+        return __builtin_string_to_lower(s)
+    }
+
+    func trim(s: string) -> string {
+        return __builtin_string_trim(s)
+    }
+
+    func replace(s: string, old: string, new: string) -> string {
+        return __builtin_string_replace(s, old, new)
+    }
+
+    func split(s: string, delimiter: string) -> [string] {
+        return __builtin_string_split(s, delimiter)
+    }
+
+    func join(strings: [string], delimiter: string) -> string {
+        return __builtin_string_join(strings, delimiter)
+    }
+
+    func contains(s: string, substring: string) -> bool {
+        return __builtin_string_contains(s, substring)
+    }
+}

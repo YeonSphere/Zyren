@@ -1,0 +1,68 @@
+import std.testing
+import std.net.http
+import kernel.drivers.network
+
+fn test_network_interface_creation() {
+    let network_manager = init_network_manager()
+    
+    let test_interface = NetworkInterface {
+        name: "eth0",
+        ip_address: "192.168.1.100",
+        mac_address: "00:11:22:33:44:55",
+        status: "up"
+    }
+    
+    network_manager.add_interface(test_interface)
+    
+    let retrieved_interface = network_manager.get_interface("eth0")
+    
+    assert(retrieved_interface != null, "Interface should be retrieved")
+    assert(retrieved_interface?.name == "eth0", "Interface name should match")
+    assert(retrieved_interface?.ip_address == "192.168.1.100", "IP address should match")
+    assert(retrieved_interface?.mac_address == "00:11:22:33:44:55", "MAC address should match")
+    assert(retrieved_interface?.status == "up", "Status should match")
+}
+
+fn test_network_interface_update() {
+    let network_manager = init_network_manager()
+    
+    let test_interface = NetworkInterface {
+        name: "wlan0",
+        ip_address: "10.0.0.1",
+        mac_address: "AA:BB:CC:DD:EE:FF",
+        status: "down"
+    }
+    
+    network_manager.add_interface(test_interface)
+    network_manager.update_interface_status("wlan0", "up")
+    
+    let updated_interface = network_manager.get_interface("wlan0")
+    
+    assert(updated_interface != null, "Interface should be retrieved")
+    assert(updated_interface?.status == "up", "Status should be updated to 'up'")
+}
+
+fn test_network_interface_removal() {
+    let network_manager = init_network_manager()
+    
+    let test_interface = NetworkInterface {
+        name: "eth1",
+        ip_address: "172.16.0.1",
+        mac_address: "11:22:33:44:55:66",
+        status: "up"
+    }
+    
+    network_manager.add_interface(test_interface)
+    network_manager.remove_interface("eth1")
+    
+    let removed_interface = network_manager.get_interface("eth1")
+    
+    assert(removed_interface == null, "Interface should be removed")
+}
+
+fn main() {
+    test_network_interface_creation()
+    test_network_interface_update()
+    test_network_interface_removal()
+    println("All network integration tests passed successfully!")
+}

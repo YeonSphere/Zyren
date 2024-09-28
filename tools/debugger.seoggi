@@ -1,0 +1,43 @@
+import std.collections.HashMap
+import std.io.println
+
+struct Debugger {
+    breakpoints: HashMap<string, int>
+
+    fn new() -> Debugger {
+        return Debugger {
+            breakpoints: HashMap<string, int>.new()
+        }
+    }
+
+    fn add_breakpoint(self, file: string, line: int) {
+        self.breakpoints.insert(file, line)
+        println("Breakpoint added at " + file + ":" + line.to_string())
+    }
+
+    fn remove_breakpoint(self, file: string, line: int) {
+        if self.breakpoints.remove(file) == Some(line) {
+            println("Breakpoint removed from " + file + ":" + line.to_string())
+        } else {
+            println("No breakpoint found at " + file + ":" + line.to_string())
+        }
+    }
+
+    fn list_breakpoints(self) {
+        println("Current breakpoints:")
+        for (file, line) in self.breakpoints {
+            println(file + ":" + line.to_string())
+        }
+    }
+
+    fn start_debugging(self) {
+        println("Starting debugger...")
+        // Add debugging logic here
+    }
+}
+
+fn init_debugger() -> Debugger {
+    let debugger = Debugger.new()
+    println("Debugger initialized")
+    return debugger
+}

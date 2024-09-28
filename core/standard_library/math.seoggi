@@ -1,0 +1,65 @@
+module Math {
+    const PI: float = 3.14159265358979323846
+    const E: float = 2.71828182845904523536
+
+    func abs(x: float) -> float {
+        if x < 0 {
+            return -x
+        }
+        return x
+    }
+
+    func sqrt(x: float) -> float {
+        # Implementation of square root function
+        # This is a placeholder and should be replaced with an actual implementation
+        return __builtin_sqrt(x)
+    }
+
+    func pow(base: float, exponent: float) -> float {
+        # Implementation of power function
+        # This is a placeholder and should be replaced with an actual implementation
+        return __builtin_pow(base, exponent)
+    }
+
+    func sin(x: float) -> float {
+        # Implementation of sine function
+        # This is a placeholder and should be replaced with an actual implementation
+        return __builtin_sin(x)
+    }
+
+    func cos(x: float) -> float {
+        # Implementation of cosine function
+        # This is a placeholder and should be replaced with an actual implementation
+        return __builtin_cos(x)
+    }
+
+    func tan(x: float) -> float {
+        # Implementation of tangent function
+        # This is a placeholder and should be replaced with an actual implementation
+        return __builtin_tan(x)
+    }
+
+    func log(x: float) -> float {
+        # Implementation of natural logarithm function
+        # This is a placeholder and should be replaced with an actual implementation
+        return __builtin_log(x)
+    }
+
+    func ceil(x: float) -> int {
+        # Implementation of ceiling function
+        # This is a placeholder and should be replaced with an actual implementation
+        return __builtin_ceil(x)
+    }
+
+    func floor(x: float) -> int {
+        # Implementation of floor function
+        # This is a placeholder and should be replaced with an actual implementation
+        return __builtin_floor(x)
+    }
+
+    func round(x: float) -> int {
+        # Implementation of round function
+        # This is a placeholder and should be replaced with an actual implementation
+        return __builtin_round(x)
+    }
+}

@@ -1,3 +1,22 @@
 # Code owners for the entire repository
-* @daedaevibin
-* @YeonSphere
+* @daedaevibin @YeonSphere
+
+# Web frontend
+/web/frontend/ @frontend-team
+
+# Backend
+/web/backend/ @backend-team
+
+# Documentation
+/web/docs/ @doc-team
+
+# Configuration files
+*.config.js @devops-team
+*.yml @devops-team
+
+# Test files
+*.test.js @qa-team
+*.spec.js @qa-team
+
+# Build scripts
+/scripts/ @build-team

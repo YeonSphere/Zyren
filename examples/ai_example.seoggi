@@ -1,0 +1,22 @@
+# AI Example in Seoggi
+
+import String
+import Math
+
+func generate_greeting(name: string) -> string {
+    return String.concat("Hello, ", String.to_upper(name))
+}
+
+func calculate_area(radius: float) -> float {
+    return Math.pi * Math.pow(radius, 2.0)
+}
+
+func main() {
+    let name = "Alice"
+    let greeting = generate_greeting(name)
+    println(greeting)
+
+    let radius = 5.0
+    let area = calculate_area(radius)
+    println(String.concat("Area of circle with radius ", String.concat(String.from_float(radius), String.concat(" is ", String.from_float(area)))))
+}

@@ -1,0 +1,66 @@
+import std.collections.Queue
+import std.time
+
+struct Process {
+    id: int
+    priority: int
+    state: ProcessState
+    context: Context
+}
+
+enum ProcessState {
+    Ready,
+    Running,
+    Blocked,
+    Terminated
+}
+
+struct Context {
+    // CPU register states, stack pointer, etc.
+    // To be implemented based on the specific architecture
+}
+
+struct Scheduler {
+    ready_queue: Queue<Process>
+    current_process: Process?
+    time_slice: int
+
+    fn new(time_slice: int) -> Scheduler {
+        return Scheduler {
+            ready_queue: Queue<Process>.new(),
+            current_process: null,
+            time_slice: time_slice
+        }
+    }
+
+    fn add_process(self, process: Process) {
+        self.ready_queue.enqueue(process)
+    }
+
+    fn schedule(self) {
+        if self.current_process != null {
+            // Put the current process back in the queue if it's still running
+            if self.current_process.state == ProcessState.Running {
+                self.current_process.state = ProcessState.Ready
+                self.ready_queue.enqueue(self.current_process)
+            }
+        }
+
+        if !self.ready_queue.is_empty() {
+            self.current_process = self.ready_queue.dequeue()
+            self.current_process.state = ProcessState.Running
+            // Context switch would happen here
+            // run_process(self.current_process, self.time_slice)
+        }
+    }
+}
+
+fn start_scheduler() {
+    let scheduler = Scheduler.new(100) // 100ms time slice
+    
+    // Main scheduling loop
+    loop {
+        scheduler.schedule()
+        time.sleep(scheduler.time_slice)
+    }
+}

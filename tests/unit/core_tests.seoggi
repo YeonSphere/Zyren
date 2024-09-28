@@ -1,0 +1,95 @@
+import std.testing
+import std.collections.HashMap
+import kernel.memory.memory_manager
+import kernel.drivers.device_manager
+import kernel.drivers.network
+
+fn test_memory_manager() {
+    let memory_manager = getMemoryManager()
+    
+    // Test allocation
+    let ptr = memory_manager.allocate(1024)
+    assert(ptr != null, "Memory allocation should succeed")
+    
+    // Test reallocation
+    let new_ptr = memory_manager.reallocate(ptr, 2048)
+    assert(new_ptr != null, "Memory reallocation should succeed")
+    
+    // Test deallocation
+    memory_manager.free(new_ptr)
+    
+    // Test memory stats
+    let mut total: size_t = 0
+    let mut used: size_t = 0
+    let mut free: size_t = 0
+    memory_manager.getMemoryStats(total, used, free)
+    assert(total > 0, "Total memory should be greater than 0")
+    assert(used >= 0, "Used memory should be non-negative")
+    assert(free >= 0, "Free memory should be non-negative")
+    assert(total == used + free, "Total memory should equal used plus free")
+}
+
+fn test_device_manager() {
+    let device_manager = DeviceManager.new()
+    
+    // Test device registration
+    let test_device = Device {
+        id: "dev1",
+        name: "Test Device",
+        type: "Test Type",
+        status: "Active"
+    }
+    device_manager.register_device(test_device)
+    
+    // Test device retrieval
+    let retrieved_device = device_manager.get_device("dev1")
+    assert(retrieved_device != null, "Device should be retrieved")
+    assert(retrieved_device?.id == "dev1", "Device ID should match")
+    assert(retrieved_device?.name == "Test Device", "Device name should match")
+    
+    // Test device status update
+    device_manager.update_device_status("dev1", "Inactive")
+    let updated_device = device_manager.get_device("dev1")
+    assert(updated_device?.status == "Inactive", "Device status should be updated")
+    
+    // Test device unregistration
+    device_manager.unregister_device("dev1")
+    let removed_device = device_manager.get_device("dev1")
+    assert(removed_device == null, "Device should be removed")
+}
+
+fn test_network_manager() {
+    let network_manager = NetworkManager.new()
+    
+    // Test interface addition
+    let test_interface = NetworkInterface {
+        name: "eth0",
+        ip_address: "192.168.1.100",
+        mac_address: "00:11:22:33:44:55",
+        status: "up"
+    }
+    network_manager.add_interface(test_interface)
+    
+    // Test interface retrieval
+    let retrieved_interface = network_manager.get_interface("eth0")
+    assert(retrieved_interface != null, "Interface should be retrieved")
+    assert(retrieved_interface?.name == "eth0", "Interface name should match")
+    assert(retrieved_interface?.ip_address == "192.168.1.100", "IP address should match")
+    
+    // Test interface status update
+    network_manager.update_interface_status("eth0", "down")
+    let updated_interface = network_manager.get_interface("eth0")
+    assert(updated_interface?.status == "down", "Interface status should be updated")
+    
+    // Test interface removal
+    network_manager.remove_interface("eth0")
+    let removed_interface = network_manager.get_interface("eth0")
+    assert(removed_interface == null, "Interface should be removed")
+}
+
+fn main() {
+    test_memory_manager()
+    test_device_manager()
+    test_network_manager()
+    println("All core unit tests passed successfully!")
+}

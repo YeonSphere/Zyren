@@ -1,4 +1,40 @@
 func kernel_main() {
-    print("Seoggi Kernel Initializing...")
-    # TODO: Implement kernel initialization
+    println("Seoggi Kernel Initializing...")
+    
+    // Initialize hardware
+    init_hardware()
+    
+    // Set up memory management
+    setup_memory()
+    
+    // Initialize process management
+    init_process_manager()
+    
+    // Set up file system
+    init_filesystem()
+    
+    // Start scheduler
+    start_scheduler()
+    
+    println("Seoggi Kernel Initialization Complete")
+}
+
+func init_hardware() {
+    // TODO: Implement hardware initialization
+}
+
+func setup_memory() {
+    // TODO: Implement memory management setup
+}
+
+func init_process_manager() {
+    // TODO: Implement process management initialization
+}
+
+func init_filesystem() {
+    // TODO: Implement file system initialization
+}
+
+func start_scheduler() {
+    // TODO: Implement scheduler startup
 }

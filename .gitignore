@@ -3,6 +3,7 @@ node_modules/
 
 # Ignore build output
 build/
+dist/
 
 # Ignore logs
 logs/
@@ -11,3 +12,28 @@ logs/
 # Ignore system files
 .DS_Store
 Thumbs.db
+
+# Ignore environment files
+.env
+.env.local
+.env.*.local
+
+# Ignore IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Ignore package manager files
+yarn-error.log
+npm-debug.log*
+
+# Ignore test coverage reports
+coverage/
+
+# Ignore temporary files
+*.tmp
+*.temp
+
+# Ignore Seoggi specific files
+*.seoggi

@@ -1,9 +1,11 @@
 module IO {
     func print(message: string) {
-        # TODO: Implement print function
+        # Implementation of print function
+        __builtin_print(message)
     }
-ECHO is off.
+
     func read_line() -> string {
-        # TODO: Implement read line function
+        # Implementation of read line function
+        return __builtin_read_line()
     }
 }

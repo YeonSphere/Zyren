@@ -1,0 +1,58 @@
+import std.collections.HashMap
+import std.io.println
+
+struct Package {
+    name: string
+    version: string
+    dependencies: Vec<string>
+}
+
+struct PackageManager {
+    packages: HashMap<string, Package>
+
+    fn new() -> PackageManager {
+        return PackageManager {
+            packages: HashMap<string, Package>.new()
+        }
+    }
+
+    fn install_package(self, name: string, version: string, dependencies: Vec<string>) {
+        let package = Package {
+            name: name,
+            version: version,
+            dependencies: dependencies
+        }
+        self.packages.insert(name, package)
+        println("Package " + name + " (v" + version + ") installed successfully")
+    }
+
+    fn uninstall_package(self, name: string) {
+        if self.packages.remove(name) != None {
+            println("Package " + name + " uninstalled successfully")
+        } else {
+            println("Package " + name + " not found")
+        }
+    }
+
+    fn update_package(self, name: string, new_version: string) {
+        if let Some(mut package) = self.packages.get_mut(name) {
+            package.version = new_version
+            println("Package " + name + " updated to version " + new_version)
+        } else {
+            println("Package " + name + " not found")
+        }
+    }
+
+    fn list_packages(self) {
+        println("Installed packages:")
+        for (name, package) in self.packages {
+            println(name + " (v" + package.version + ")")
+        }
+    }
+}
+
+fn init_package_manager() -> PackageManager {
+    let package_manager = PackageManager.new()
+    println("Package manager initialized")
+    return package_manager
+}

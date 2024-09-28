@@ -1,0 +1,78 @@
+import std.collections.HashMap
+import std.io.println
+import std.time
+
+struct DatabaseConnection {
+    host: string
+    port: int
+    username: string
+    password: string
+    connected: bool
+    last_query_time: time.Duration
+}
+
+struct Database {
+    connections: HashMap<string, DatabaseConnection>
+
+    fn new() -> Database {
+        return Database {
+            connections: HashMap<string, DatabaseConnection>.new()
+        }
+    }
+
+    fn connect(self, name: string, host: string, port: int, username: string, password: string) -> bool {
+        let connection = DatabaseConnection {
+            host: host,
+            port: port,
+            username: username,
+            password: password,
+            connected: true,
+            last_query_time: time.Duration.zero()
+        }
+        self.connections.insert(name, connection)
+        println("Connected to database: " + name)
+        return true
+    }
+
+    fn disconnect(self, name: string) -> bool {
+        if let Some(mut connection) = self.connections.get_mut(name) {
+            connection.connected = false
+            println("Disconnected from database: " + name)
+            return true
+        }
+        println("Database connection not found: " + name)
+        return false
+    }
+
+    fn execute_query(self, name: string, query: string) -> bool {
+        if let Some(mut connection) = self.connections.get_mut(name) {
+            if !connection.connected {
+                println("Database not connected: " + name)
+                return false
+            }
+            let start_time = time.now()
+            // Simulating query execution
+            println("Executing query on database: " + name)
+            println("Query: " + query)
+            let end_time = time.now()
+            connection.last_query_time = end_time - start_time
+            println("Query executed in: " + connection.last_query_time.to_string())
+            return true
+        }
+        println("Database connection not found: " + name)
+        return false
+    }
+
+    fn get_connection_status(self, name: string) -> Option<bool> {
+        if let Some(connection) = self.connections.get(name) {
+            return Some(connection.connected)
+        }
+        return None
+    }
+}
+
+fn init_database() -> Database {
+    let database = Database.new()
+    println("Database initialized")
+    return database
+}
