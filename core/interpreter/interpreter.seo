@@ -1,0 +1,40 @@
+module Interpreter {
+    type Environment {
+        values: map<string, any>
+    }
+
+    func create_env() -> Environment {
+        return Environment{
+            values: {
+                "__builtin_print": func(msg: string) {
+                    # Direct system call to print
+                    system_print(msg)
+                },
+                "__builtin_read_line": func() -> string {
+                    # Direct system call to read line
+                    return system_read_line()
+                }
+            }
+        }
+    }
+
+    func interpret(ast: any, env: Environment) -> any {
+        match ast.type {
+            "Module" -> {
+                for stmt in ast.body {
+                    interpret(stmt, env)
+                }
+            }
+            "FunctionCall" -> {
+                func = env.values[ast.func_name]
+                return func(ast.args)
+            }
+            "StringLiteral" -> {
+                return ast.value
+            }
+            "Variable" -> {
+                return env.values[ast.name]
+            }
+        }
+    }
+}

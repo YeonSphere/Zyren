@@ -1,0 +1,47 @@
+module Base {
+    // Core types
+    type Any {}
+    type Number {}
+    type String {}
+    type Boolean {}
+    type List<T> {}
+    type Map<K, V> {}
+    type Function {}
+
+    // Core functions
+    fn print(value: Any) {
+        // Universal print implementation
+    }
+
+    fn error(message: String) {
+        // Universal error handling
+    }
+
+    // Universal module system
+    fn import(path: String) -> Any {
+        // Dynamic module loading
+    }
+
+    // Universal async support
+    fn async(fn: Function) -> Any {
+        // Async execution handler
+    }
+
+    // Universal memory management
+    fn alloc(size: Number) -> Any {
+        // Memory allocation
+    }
+
+    fn free(ptr: Any) {
+        // Memory deallocation
+    }
+
+    // Universal I/O
+    fn read(source: Any) -> Any {
+        // Universal read operation
+    }
+
+    fn write(target: Any, data: Any) {
+        // Universal write operation
+    }
+}

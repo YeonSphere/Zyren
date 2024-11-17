@@ -1,22 +1,36 @@
-# Code owners for the entire repository
+# Core language maintainers
 * @daedaevibin @YeonSphere
 
-# Web frontend
-/web/frontend/ @frontend-team
+# Core language components
+/core/compiler/ @compiler-team
+/core/types/ @type-system-team
+/core/runtime/ @runtime-team
 
-# Backend
-/web/backend/ @backend-team
+# Domain-specific modules
+/web/ @web-team
+/ai/ @ai-team
+/kernel/ @kernel-team
+
+# Standard library
+/lib/ @stdlib-team
 
 # Documentation
-/web/docs/ @doc-team
+/docs/ @doc-team
+
+# Examples
+/examples/ @example-team
+/examples/web/ @web-team
+/examples/ai/ @ai-team
+/examples/kernel/ @kernel-team
+
+# Testing
+/tests/ @qa-team
+
+# Tools and infrastructure
+/tools/ @tools-team
+/bin/ @build-team
+setup.sh @devops-team
 
 # Configuration files
 *.config.js @devops-team
 *.yml @devops-team
-
-# Test files
-*.test.js @qa-team
-*.spec.js @qa-team
-
-# Build scripts
-/scripts/ @build-team

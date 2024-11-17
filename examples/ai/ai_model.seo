@@ -1,0 +1,70 @@
+module Main {
+    // Import AI and tensor modules
+    use AI
+    use Tensor
+    use IO
+    use Math
+
+    // Define a simple neural network
+    fn create_model() -> AI.Model {
+        return AI.Sequential([
+            AI.Layer.Dense(units: 128, activation: "relu"),
+            AI.Layer.Dropout(0.2),
+            AI.Layer.Dense(units: 64, activation: "relu"),
+            AI.Layer.Dense(units: 10, activation: "softmax")
+        ])
+    }
+
+    // Data preprocessing
+    fn preprocess_data(data: Tensor) -> Tensor {
+        // Normalize data
+        normalized = data / 255.0
+        
+        // Reshape and augment
+        return AI.augment(normalized, [
+            AI.Transform.RandomRotation(0.1),
+            AI.Transform.RandomZoom(0.1)
+        ])
+    }
+
+    // Training loop
+    fn train_model(model: AI.Model, data: AI.Dataset) {
+        // Configure training
+        model.compile(
+            optimizer: AI.Optimizer.Adam(learning_rate: 0.001),
+            loss: "categorical_crossentropy",
+            metrics: ["accuracy"]
+        )
+        
+        // Train model
+        model.fit(
+            data.train_data,
+            epochs: 10,
+            batch_size: 32,
+            validation_data: data.test_data
+        )
+    }
+
+    // Main function
+    fn main() {
+        IO.print("Loading MNIST dataset...")
+        dataset = AI.Dataset.load("mnist")
+        
+        IO.print("Preprocessing data...")
+        processed_data = preprocess_data(dataset.data)
+        
+        IO.print("Creating model...")
+        model = create_model()
+        
+        IO.print("Training model...")
+        train_model(model, processed_data)
+        
+        IO.print("Evaluating model...")
+        accuracy = model.evaluate(dataset.test_data)
+        IO.print(f"Test accuracy: {accuracy}")
+        
+        // Save model
+        model.save("mnist_model.seo")
+        IO.print("Model saved successfully!")
+    }
+}

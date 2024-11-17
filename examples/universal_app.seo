@@ -1,0 +1,53 @@
+module Main {
+    // Import the universal module
+    use Universal
+
+    // Function that works universally across contexts
+    fn process(data: Any) -> Any {
+        // Get current execution context
+        context = Universal.getContext()
+        
+        // Open appropriate resource based on context
+        resource = Universal.open("data", "rw")
+        
+        // Process data universally
+        result = Universal.compute(fn(x) { return x * 2 }, data)
+        
+        // Store result appropriately
+        Universal.store("result", result)
+        
+        // Clean up
+        Universal.close(resource)
+        
+        return result
+    }
+
+    // Main entry point
+    fn main() {
+        print("Universal Seoggi Application")
+        
+        // Works in web context
+        if Universal.getContext() == "web" {
+            conn = Universal.connect("http://api.example.com")
+            data = Universal.receive(conn)
+            result = process(data)
+            Universal.send(conn, result)
+        }
+        
+        // Works in AI context
+        if Universal.getContext() == "ai" {
+            data = Universal.retrieve("training_data")
+            result = process(data)
+            Universal.store("model", result)
+        }
+        
+        // Works in kernel context
+        if Universal.getContext() == "kernel" {
+            handle = Universal.open("/dev/input", "r")
+            data = Universal.read(handle)
+            result = process(data)
+            Universal.write(handle, result)
+            Universal.close(handle)
+        }
+    }
+}

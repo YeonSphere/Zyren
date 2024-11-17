@@ -1,0 +1,116 @@
+module Main {
+    // Import kernel modules
+    use Kernel
+    use IO
+    use Memory
+    use System
+
+    // Device driver structure
+    struct MyDevice {
+        major: int,
+        name: str,
+        buffer: Memory.Buffer
+    }
+
+    // Initialize device
+    fn init_device() -> MyDevice {
+        return MyDevice {
+            major: Kernel.register_chrdev(0, "mydevice"),
+            name: "mydevice",
+            buffer: Memory.Buffer.new(1024)  // 1KB buffer
+        }
+    }
+
+    // File operations
+    fn device_open(dev: MyDevice) -> Result<int, str> {
+        IO.print("Device opened")
+        return Ok(0)
+    }
+
+    fn device_read(dev: MyDevice, buf: Memory.Buffer, count: int) -> Result<int, str> {
+        // Read from device buffer
+        bytes_read = dev.buffer.read(buf, count)
+        IO.print(f"Read {bytes_read} bytes")
+        return Ok(bytes_read)
+    }
+
+    fn device_write(dev: MyDevice, buf: Memory.Buffer, count: int) -> Result<int, str> {
+        // Write to device buffer
+        bytes_written = dev.buffer.write(buf, count)
+        IO.print(f"Wrote {bytes_written} bytes")
+        return Ok(bytes_written)
+    }
+
+    fn device_close(dev: MyDevice) -> Result<int, str> {
+        IO.print("Device closed")
+        return Ok(0)
+    }
+
+    // Interrupt handler
+    fn handle_interrupt(irq: int, dev: MyDevice) -> bool {
+        IO.print(f"Handling interrupt {irq}")
+        
+        // Process interrupt
+        if dev.buffer.available() > 0 {
+            data = dev.buffer.peek(16)  // Look at next 16 bytes
+            Kernel.process_data(data)
+            return true
+        }
+        
+        return false
+    }
+
+    // Module initialization
+    fn module_init() {
+        IO.print("Initializing kernel module...")
+        
+        // Create device
+        device = init_device()
+        
+        // Register interrupt handler
+        Kernel.request_irq(
+            irq: 10,
+            handler: fn(irq) { handle_interrupt(irq, device) },
+            flags: Kernel.IRQF_SHARED,
+            name: device.name
+        )
+        
+        // Set up file operations
+        ops = Kernel.FileOperations {
+            open: fn() { device_open(device) },
+            read: fn(buf, count) { device_read(device, buf, count) },
+            write: fn(buf, count) { device_write(device, buf, count) },
+            close: fn() { device_close(device) }
+        }
+        
+        // Create device file
+        Kernel.create_device(
+            name: device.name,
+            major: device.major,
+            ops: ops
+        )
+        
+        IO.print("Kernel module initialized successfully!")
+    }
+
+    // Module cleanup
+    fn module_cleanup() {
+        IO.print("Cleaning up kernel module...")
+        
+        // Unregister device and free resources
+        Kernel.unregister_chrdev(device.major, device.name)
+        Kernel.free_irq(10, device)
+        
+        IO.print("Kernel module cleaned up successfully!")
+    }
+
+    // Main entry point
+    fn main() {
+        // Register module handlers
+        Kernel.module_init(module_init)
+        Kernel.module_cleanup(module_cleanup)
+        
+        // Start the module
+        module_init()
+    }
+}

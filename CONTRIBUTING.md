@@ -1,41 +1,189 @@
 # Contributing to Seoggi
 
-Thank you for considering contributing to Seoggi! We welcome contributions from everyone. Here are some guidelines to help you get started:
+Thank you for considering contributing to Seoggi! We welcome contributions from everyone and are excited to welcome you aboard.
 
-## How to Contribute
-
-1. Fork the repository.
-2. Create a new branch for your feature or bug fix (`git checkout -b feature/your-feature-name` or `git checkout -b fix/your-bug-fix`).
-3. Make your changes, ensuring you follow our coding standards and practices.
-4. Write or update tests as necessary.
-5. Commit your changes with clear and descriptive commit messages (`git commit -m 'Add some feature'`).
-6. Push to your branch (`git push origin feature/your-feature-name`).
-7. Open a pull request against the main branch with a clear title and description.
-
-## Code Style and Standards
-
-- Follow the existing code style in the project.
-- Write clear, readable, and well-documented code.
-- Ensure your code passes all existing tests and lint checks.
+## Table of Contents
+- [Code of Conduct](#code-of-conduct)
+- [Getting Started](#getting-started)
+- [Development Process](#development-process)
+- [Submitting Changes](#submitting-changes)
+- [Coding Standards](#coding-standards)
+- [Testing Guidelines](#testing-guidelines)
+- [Documentation](#documentation)
 
 ## Code of Conduct
+We are committed to fostering a welcoming and inclusive community. Please read and follow our [Code of Conduct](CODE_OF_CONDUCT.md).
 
-Please adhere to our Code of Conduct in all interactions within the project. We strive to maintain a welcoming and inclusive community.
+## Getting Started
 
-## Reporting Issues
+### Prerequisites
+- Git
+- Bash (Linux/macOS) or Git Bash (Windows)
+- Basic development tools (gcc/clang/mingw)
 
-If you find a bug or have a feature request:
+### Setup Development Environment
+1. Fork the repository
+2. Clone your fork:
+   ```bash
+   git clone https://github.com/YOUR_USERNAME/Seoggi.git
+   cd Seoggi
+   ```
+3. Run setup script:
+   ```bash
+   ./setup.sh
+   ```
+4. Source the environment:
+   ```bash
+   # Linux/macOS:
+   source bin/seoggi.env
+   
+   # Windows:
+   bin\seoggi.env.bat
+   ```
 
-1. Check if the issue already exists in our issue tracker.
-2. If it doesn't exist, open a new issue with a clear title and detailed description.
-3. Include steps to reproduce for bugs, or use cases for feature requests.
+## Development Process
+
+### Branches
+- `main`: Stable release branch
+- `develop`: Main development branch
+- `feature/*`: New features
+- `fix/*`: Bug fixes
+- `docs/*`: Documentation changes
+
+### Working on Features
+1. Create a feature branch:
+   ```bash
+   git checkout -b feature/your-feature-name
+   ```
+2. Make your changes
+3. Write tests
+4. Update documentation
+5. Commit changes
+6. Push to your fork
+7. Create a Pull Request
+
+## Submitting Changes
+
+### Pull Request Process
+1. Update the README.md with details of changes if needed
+2. Update the documentation
+3. Add tests for new functionality
+4. Ensure all tests pass
+5. Update the CHANGELOG.md
+6. Get approval from maintainers
+
+### Commit Messages
+Follow the conventional commits specification:
+- `feat`: New feature
+- `fix`: Bug fix
+- `docs`: Documentation
+- `test`: Adding tests
+- `refactor`: Code refactoring
+- `style`: Code style changes
+- `chore`: Maintenance tasks
+
+Example:
+```
+feat(web): add HTTP/2 support
+
+- Implement HTTP/2 protocol
+- Add stream multiplexing
+- Update documentation
+```
+
+## Coding Standards
+
+### General Guidelines
+- Use 4 spaces for indentation
+- Keep lines under 100 characters
+- Use meaningful variable and function names
+- Write self-documenting code
+- Add comments for complex logic
+
+### Language-Specific Standards
+```seoggi
+// Good
+module MyModule {
+    fn process_data(input: str) -> Result<int, Error> {
+        // Implementation
+    }
+}
+
+// Bad
+module mymodule {
+    fn processdata(i: str) -> Result<int, Error> {
+        // Implementation
+    }
+}
+```
+
+## Testing Guidelines
+
+### Writing Tests
+1. Create test files in the appropriate `/tests` directory
+2. Name tests descriptively
+3. Test both success and failure cases
+4. Use meaningful assertions
+
+Example:
+```seoggi
+module Test {
+    use Test
+    
+    fn test_data_processing() {
+        input = "test data"
+        result = process_data(input)
+        Test.assert_eq(result, expected)
+    }
+}
+```
+
+### Running Tests
+```bash
+seo test                 # Run all tests
+seo test web            # Run web tests
+seo test ai             # Run AI tests
+seo test kernel         # Run kernel tests
+```
+
+## Documentation
+
+### Code Documentation
+- Document all public APIs
+- Include examples in documentation
+- Keep documentation up to date
+- Use clear and concise language
+
+Example:
+```seoggi
+/// Processes input data and returns a result
+/// 
+/// # Arguments
+/// * `input` - The input string to process
+/// 
+/// # Returns
+/// * `Result<int, Error>` - The processed result or an error
+/// 
+/// # Examples
+/// ```seoggi
+/// result = process_data("test")
+/// assert_eq(result, Ok(42))
+/// ```
+fn process_data(input: str) -> Result<int, Error> {
+    // Implementation
+}
+```
+
+### Project Documentation
+- Keep README.md up to date
+- Document new features
+- Update API documentation
+- Add examples for new functionality
 
 ## Getting Help
+- Join our [Discord](https://discord.gg/)
+- Check the [Documentation](https://yeonsphere.io/seoggi/docs/)
+- Ask in GitHub Discussions
+- Contact the maintainers
 
-If you need help with your contribution:
-
-- Check our documentation.
-- Ask questions in our community chat or forum.
-- Reach out to the maintainers if you're stuck.
-
-We appreciate your contributions to making Seoggi better!
+Thank you for contributing to Seoggi! 

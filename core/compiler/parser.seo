@@ -1,0 +1,153 @@
+module Compiler::Parser {
+    use Core::Types::{Token, TokenType, Node, Position}
+    use Core::Error::{ParserError, Result}
+    use Core::AST::*
+
+    type Parser {
+        tokens: Vector<Token>,
+        current: usize,
+        ast: Vector<Node>
+    }
+
+    impl Parser {
+        func new(tokens: Vector<Token>) -> Parser {
+            Parser {
+                tokens: tokens,
+                current: 0,
+                ast: Vector::new()
+            }
+        }
+
+        // Main parsing function
+        func parse(&mut self) -> Result<Vector<Node>> {
+            while !self.is_end() {
+                let node = self.parse_declaration()?;
+                self.ast.push(node);
+            }
+            Ok(self.ast)
+        }
+
+        // Top-level declarations
+        func parse_declaration(&mut self) -> Result<Node> {
+            match self.peek().type {
+                TokenType::Module => self.parse_module(),
+                TokenType::Use => self.parse_use(),
+                TokenType::Type => self.parse_type_declaration(),
+                TokenType::Func => self.parse_function(),
+                TokenType::Let => self.parse_variable(),
+                _ => self.parse_statement()
+            }
+        }
+
+        // Module declaration
+        func parse_module(&mut self) -> Result<Node> {
+            self.consume(TokenType::Module, "Expected 'module' keyword")?;
+            let name = self.consume(TokenType::Identifier, "Expected module name")?;
+            self.consume(TokenType::LeftBrace, "Expected '{' after module name")?;
+            
+            let mut body = Vector::new();
+            while !self.check(TokenType::RightBrace) && !self.is_end() {
+                body.push(self.parse_declaration()?);
+            }
+            
+            self.consume(TokenType::RightBrace, "Expected '}' after module body")?;
+            Ok(Node::Module { name: name.lexeme, body: body })
+        }
+
+        // Function declaration
+        func parse_function(&mut self) -> Result<Node> {
+            self.consume(TokenType::Func, "Expected 'func' keyword")?;
+            let name = self.consume(TokenType::Identifier, "Expected function name")?;
+            
+            // Parse parameters
+            self.consume(TokenType::LeftParen, "Expected '(' after function name")?;
+            let params = self.parse_parameters()?;
+            self.consume(TokenType::RightParen, "Expected ')' after parameters")?;
+            
+            // Parse return type
+            let return_type = if self.match_token(TokenType::Arrow) {
+                Some(self.parse_type()?)
+            } else {
+                None
+            };
+            
+            // Parse body
+            self.consume(TokenType::LeftBrace, "Expected '{' before function body")?;
+            let body = self.parse_block()?;
+            
+            Ok(Node::Function {
+                name: name.lexeme,
+                params: params,
+                return_type: return_type,
+                body: body
+            })
+        }
+
+        // Statement parsing
+        func parse_statement(&mut self) -> Result<Node> {
+            match self.peek().type {
+                TokenType::If => self.parse_if(),
+                TokenType::While => self.parse_while(),
+                TokenType::Return => self.parse_return(),
+                TokenType::LeftBrace => self.parse_block(),
+                _ => self.parse_expression_statement()
+            }
+        }
+
+        // Expression parsing
+        func parse_expression(&mut self) -> Result<Node> {
+            self.parse_assignment()
+        }
+
+        func parse_assignment(&mut self) -> Result<Node> {
+            let expr = self.parse_equality()?;
+            
+            if self.match_token(TokenType::Equal) {
+                let value = self.parse_assignment()?;
+                match expr {
+                    Node::Variable { name } => {
+                        Ok(Node::Assignment {
+                            name: name,
+                            value: Box::new(value)
+                        })
+                    },
+                    _ => Err(ParserError::InvalidAssignmentTarget)
+                }
+            } else {
+                Ok(expr)
+            }
+        }
+
+        // Helper functions
+        func advance(&mut self) -> Token {
+            if !self.is_end() {
+                self.current += 1;
+            }
+            self.previous()
+        }
+
+        func peek(&self) -> Token {
+            self.tokens[self.current]
+        }
+
+        func previous(&self) -> Token {
+            self.tokens[self.current - 1]
+        }
+
+        func is_end(&self) -> bool {
+            self.peek().type == TokenType::EOF
+        }
+
+        func consume(&mut self, type: TokenType, message: string) -> Result<Token> {
+            if self.check(type) {
+                Ok(self.advance())
+            } else {
+                Err(ParserError::ExpectedToken {
+                    expected: type,
+                    found: self.peek().type,
+                    message: message
+                })
+            }
+        }
+    }
+}

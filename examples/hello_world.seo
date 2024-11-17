@@ -1,0 +1,7 @@
+module Main {
+    use IO
+
+    func main() {
+        IO.print("Hello, World!")
+    }
+}

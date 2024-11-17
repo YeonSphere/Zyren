@@ -1,0 +1,32 @@
+module Runtime {
+    use Interpreter
+    use IO
+
+    func run_file(filename: string) {
+        # Read the file content
+        content = IO.read_file(filename)
+        
+        # Parse the content into AST
+        ast = parse(content)
+        
+        # Create environment
+        env = Interpreter.create_env()
+        
+        # Run the program
+        Interpreter.interpret(ast, env)
+    }
+
+    func parse(content: string) -> any {
+        # Simple AST generation for demo
+        return {
+            type: "Module",
+            body: [
+                {
+                    type: "FunctionCall",
+                    func_name: "__builtin_print",
+                    args: [content]
+                }
+            ]
+        }
+    }
+}

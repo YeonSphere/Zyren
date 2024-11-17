@@ -1,0 +1,47 @@
+// Seoggi Language Core Syntax Definition
+
+// Module declaration
+module Example {
+    // Type definition
+    type Person {
+        name: String
+        age: Number
+        isStudent: Boolean
+    }
+
+    // Function definition
+    fn greet(person: Person) -> String {
+        return "Hello, " + person.name
+    }
+
+    // Variables
+    let name = "John"
+    let age = 25
+    let isActive = true
+
+    // Control flow
+    if age > 18 {
+        print("Adult")
+    } else {
+        print("Minor")
+    }
+
+    // Loops
+    while count < 10 {
+        print(count)
+        count += 1
+    }
+
+    // List operations
+    let numbers = [1, 2, 3, 4, 5]
+    for num in numbers {
+        print(num * 2)
+    }
+
+    // Object creation
+    let student = Person{
+        name: "Alice",
+        age: 20,
+        isStudent: true
+    }
+}

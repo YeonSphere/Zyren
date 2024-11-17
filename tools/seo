@@ -1,0 +1,90 @@
+#!/bin/bash
+
+SEOGGI_ROOT="/home/dae/YeonSphere/Seoggi"
+
+# Function to find a .seo file
+find_seo_file() {
+    local name="$1"
+    local file=""
+
+    # First check if it's a direct path to a .seo file
+    if [[ -f "$name" && "$name" == *.seo ]]; then
+        echo "$name"
+        return 0
+    fi
+
+    # Then check if we need to add .seo extension
+    if [[ -f "${name}.seo" ]]; then
+        echo "${name}.seo"
+        return 0
+    fi
+
+    # Check current directory
+    if [[ -f "./${name}.seo" ]]; then
+        echo "./${name}.seo"
+        return 0
+    fi
+
+    # Check examples directory
+    if [[ -f "$SEOGGI_ROOT/examples/${name}.seo" ]]; then
+        echo "$SEOGGI_ROOT/examples/${name}.seo"
+        return 0
+    fi
+
+    return 1
+}
+
+# Function to show usage
+show_usage() {
+    echo "Seoggi Programming Language"
+    echo "Usage: seo <command> [arguments]"
+    echo ""
+    echo "Commands:"
+    echo "  exec <file>     Execute a Seoggi program"
+    echo "  run             Start REPL mode"
+    echo "  help            Show this help message"
+    echo ""
+    echo "Examples:"
+    echo "  seo exec hello      # Run hello.seo"
+    echo "  seo run             # Start REPL"
+    echo "  seo help            # Show help"
+}
+
+# Main command handling
+case "$1" in
+    "exec")
+        if [ -z "$2" ]; then
+            echo "Error: No file specified"
+            echo "Usage: seo exec <file>"
+            exit 1
+        fi
+
+        file=$(find_seo_file "$2")
+        if [ $? -ne 0 ]; then
+            echo "Error: Could not find Seoggi file: $2"
+            echo "Looked in:"
+            echo "  - Current directory"
+            echo "  - $SEOGGI_ROOT/examples"
+            exit 1
+        fi
+
+        echo "Running $file..."
+        "$SEOGGI_ROOT/core/seoggi_bootstrap" "$file"
+        ;;
+
+    "run")
+        echo "Starting Seoggi REPL..."
+        "$SEOGGI_ROOT/core/seoggi_bootstrap" --repl
+        ;;
+
+    "help")
+        show_usage
+        ;;
+
+    *)
+        echo "Error: Unknown command '$1'"
+        echo ""
+        show_usage
+        exit 1
+        ;;
+esac

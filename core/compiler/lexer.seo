@@ -1,0 +1,144 @@
+module Compiler::Lexer {
+    use Core::Types::{Token, TokenType, Position}
+    use Core::Error::{LexerError, Result}
+
+    type Lexer {
+        source: string,
+        position: Position,
+        current_char: char,
+        tokens: Vector<Token>
+    }
+
+    func new(source: string) -> Lexer {
+        Lexer {
+            source: source,
+            position: Position::new(1, 1),
+            current_char: source[0],
+            tokens: Vector::new()
+        }
+    }
+
+    impl Lexer {
+        // Main tokenization function
+        func tokenize(&mut self) -> Result<Vector<Token>> {
+            while !self.is_end() {
+                match self.current_char {
+                    // Skip whitespace
+                    ' ' | '\t' | '\r' | '\n' => self.advance(),
+                    
+                    // Numbers
+                    '0'..='9' => self.tokenize_number(),
+                    
+                    // Identifiers and keywords
+                    'a'..='z' | 'A'..='Z' | '_' => self.tokenize_identifier(),
+                    
+                    // Operators
+                    '+' => self.add_token(TokenType::Plus),
+                    '-' => self.add_token(TokenType::Minus),
+                    '*' => self.add_token(TokenType::Star),
+                    '/' => self.add_token(TokenType::Slash),
+                    
+                    // Delimiters
+                    '(' => self.add_token(TokenType::LeftParen),
+                    ')' => self.add_token(TokenType::RightParen),
+                    '{' => self.add_token(TokenType::LeftBrace),
+                    '}' => self.add_token(TokenType::RightBrace),
+                    
+                    // Other tokens
+                    '=' => self.match_next('=', TokenType::EqualEqual, TokenType::Equal),
+                    '!' => self.match_next('=', TokenType::BangEqual, TokenType::Bang),
+                    '<' => self.match_next('=', TokenType::LessEqual, TokenType::Less),
+                    '>' => self.match_next('=', TokenType::GreaterEqual, TokenType::Greater),
+                    
+                    // Error for unknown characters
+                    _ => return Err(LexerError::UnexpectedChar(self.current_char, self.position))
+                }
+            }
+            
+            // Add EOF token
+            self.tokens.push(Token::new(TokenType::EOF, "", self.position));
+            Ok(self.tokens)
+        }
+
+        // Helper functions
+        func advance(&mut self) {
+            self.position.advance(self.current_char);
+            self.current_char = self.next_char();
+        }
+
+        func next_char(&self) -> char {
+            if self.position.index >= self.source.len() {
+                '\0'
+            } else {
+                self.source[self.position.index]
+            }
+        }
+
+        func add_token(&mut self, type: TokenType) {
+            self.tokens.push(Token::new(type, self.current_char.to_string(), self.position));
+            self.advance();
+        }
+
+        func is_end(&self) -> bool {
+            self.current_char == '\0'
+        }
+
+        // Token specific handlers
+        func tokenize_number(&mut self) -> Result<()> {
+            let start = self.position;
+            let mut value = String::new();
+
+            while self.current_char.is_digit() {
+                value.push(self.current_char);
+                self.advance();
+            }
+
+            // Handle decimal numbers
+            if self.current_char == '.' && self.peek().is_digit() {
+                value.push('.');
+                self.advance();
+
+                while self.current_char.is_digit() {
+                    value.push(self.current_char);
+                    self.advance();
+                }
+
+                self.tokens.push(Token::new(TokenType::Float, value, start));
+            } else {
+                self.tokens.push(Token::new(TokenType::Integer, value, start));
+            }
+
+            Ok(())
+        }
+
+        func tokenize_identifier(&mut self) -> Result<()> {
+            let start = self.position;
+            let mut value = String::new();
+
+            while self.current_char.is_alphanumeric() || self.current_char == '_' {
+                value.push(self.current_char);
+                self.advance();
+            }
+
+            // Check if it's a keyword
+            let type = match value.as_str() {
+                "func" => TokenType::Function,
+                "let" => TokenType::Let,
+                "if" => TokenType::If,
+                "else" => TokenType::Else,
+                "while" => TokenType::While,
+                "return" => TokenType::Return,
+                "true" => TokenType::True,
+                "false" => TokenType::False,
+                "module" => TokenType::Module,
+                "use" => TokenType::Use,
+                "type" => TokenType::Type,
+                "impl" => TokenType::Impl,
+                _ => TokenType::Identifier
+            };
+
+            self.tokens.push(Token::new(type, value, start));
+            Ok(())
+        }
+    }
+}

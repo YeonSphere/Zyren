@@ -1,0 +1,34 @@
+module Main {
+    use Runtime
+    use IO
+
+    func main() {
+        IO.print("Seoggi Interactive Mode")
+        IO.print("Type your text (or 'exit' to quit):")
+
+        while true {
+            IO.print("> ")
+            input = IO.read_line()
+            
+            if input == "exit" {
+                break
+            }
+            
+            # Create simple AST for the input
+            ast = {
+                type: "Module",
+                body: [
+                    {
+                        type: "FunctionCall",
+                        func_name: "__builtin_print",
+                        args: [input]
+                    }
+                ]
+            }
+            
+            # Run the input
+            env = Interpreter.create_env()
+            Interpreter.interpret(ast, env)
+        }
+    }
+}

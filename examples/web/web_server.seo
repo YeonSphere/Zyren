@@ -1,0 +1,47 @@
+module Main {
+    // Import required modules
+    use Web
+    use IO
+    use JSON
+
+    // Define route handlers
+    fn handle_root(req: Web.Request) -> Web.Response {
+        return Web.Response {
+            status: 200,
+            headers: {"Content-Type": "text/html"},
+            body: "<h1>Welcome to Seoggi Web Server!</h1>"
+        }
+    }
+
+    fn handle_api(req: Web.Request) -> Web.Response {
+        // Parse JSON request
+        data = JSON.parse(req.body)
+        
+        // Process data
+        result = {
+            message: "Received data",
+            timestamp: Time.now(),
+            data: data
+        }
+        
+        return Web.Response {
+            status: 200,
+            headers: {"Content-Type": "application/json"},
+            body: JSON.stringify(result)
+        }
+    }
+
+    // Main server setup
+    fn main() {
+        // Create server instance
+        server = Web.Server.new(host: "localhost", port: 8080)
+        
+        // Register routes
+        server.route("/", handle_root)
+        server.route("/api", handle_api)
+        
+        // Start server
+        IO.print("Starting server on http://localhost:8080")
+        server.start()
+    }
+}
