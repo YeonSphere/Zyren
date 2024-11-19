@@ -128,4 +128,14 @@ We welcome contributions! Please read our [Contributing Guidelines](CONTRIBUTING
 - [Documentation](https://seoggi.dev/docs)
 
 ## License
-This project is licensed under the YeonSphere Universal Open Source License (YUOSL) - see the [LICENSE](LICENSE) file for details.
+
+This project is licensed under the YeonSphere Universal Open Source License (YUOSL). Key points:
+- 10% revenue share for commercial use
+- 30-day response window for inquiries
+- Contact @daedaevibin for commercial licensing
+- See the [LICENSE](LICENSE) file for full details
+
+## Contact
+
+- Primary Contact: Jeremy Matlock (@daedaevibin)
+- Email: daedaevibin@naver.com
