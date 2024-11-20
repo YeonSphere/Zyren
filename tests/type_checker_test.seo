@@ -1,0 +1,325 @@
+// Type Checker Tests
+
+import { TypeChecker, Type, TypeKind } from "../core/compiler/analysis/type_checker"
+import { AST, Node, NodeKind } from "../core/compiler/frontend/parser"
+import { Error, ErrorKind } from "../core/compiler/error"
+
+#[test]
+fn test_basic_types() -> Result<(), Error> {
+    let source = "
+    let x: i32 = 42
+    let y: f64 = 3.14
+    let b: bool = true
+    let s: String = "hello"
+    "
+    let ast = parse_and_check(source)?
+    
+    for decl in ast.declarations {
+        assert!(decl.type_info.is_some())
+        assert_eq!(decl.type_info.unwrap().kind, TypeKind::Primitive)
+    }
+    
+    Ok(())
+}
+
+#[test]
+fn test_function_types() -> Result<(), Error> {
+    let source = "
+    fn add(x: i32, y: i32) -> i32 {
+        return x + y
+    }
+    
+    fn greet(name: String) {
+        println("Hello, {}", name)
+    }
+    "
+    let ast = parse_and_check(source)?
+    
+    let add_fn = &ast.declarations[0]
+    assert_eq!(add_fn.type_info.unwrap().return_type.unwrap(), Type::I32)
+    
+    let greet_fn = &ast.declarations[1]
+    assert_eq!(greet_fn.type_info.unwrap().return_type.unwrap(), Type::Unit)
+    
+    Ok(())
+}
+
+#[test]
+fn test_generic_types() -> Result<(), Error> {
+    let source = "
+    struct Vec<T> {
+        data: *mut T
+        len: usize
+    }
+    
+    impl<T> Vec<T> {
+        fn new() -> Self {
+            Vec { data: null(), len: 0 }
+        }
+        
+        fn push(&mut self, item: T) {
+            // Implementation
+        }
+    }
+    "
+    let ast = parse_and_check(source)?
+    
+    let vec_struct = &ast.declarations[0]
+    assert_eq!(vec_struct.type_info.unwrap().generic_params.len(), 1)
+    
+    let impl_block = &ast.declarations[1]
+    let push_method = impl_block.methods.iter()
+        .find(|m| m.name == "push")
+        .unwrap()
+        
+    assert_eq!(push_method.parameters[1].type_info.unwrap(), Type::Generic("T"))
+    
+    Ok(())
+}
+
+#[test]
+fn test_type_inference() -> Result<(), Error> {
+    let source = "
+    fn test() {
+        let x = 42        // Should infer i32
+        let y = 3.14     // Should infer f64
+        let s = "hello"  // Should infer String
+        let v = vec![]   // Should infer Vec<T>
+        
+        let result = x + y  // Should infer f64
+    }
+    "
+    let ast = parse_and_check(source)?
+    
+    let func = &ast.declarations[0]
+    let vars = func.body.statements.iter()
+        .filter(|s| s.kind == NodeKind::VariableDecl)
+        .collect::<Vec<_>>()
+        
+    assert_eq!(vars[0].type_info.unwrap(), Type::I32)
+    assert_eq!(vars[1].type_info.unwrap(), Type::F64)
+    assert_eq!(vars[2].type_info.unwrap(), Type::String)
+    assert!(matches!(vars[3].type_info.unwrap(), Type::Vec(_)))
+    assert_eq!(vars[4].type_info.unwrap(), Type::F64)
+    
+    Ok(())
+}
+
+#[test]
+fn test_trait_bounds() -> Result<(), Error> {
+    let source = "
+    trait Display {
+        fn to_string(&self) -> String
+    }
+    
+    fn print<T: Display>(value: T) {
+        println("{}", value.to_string())
+    }
+    "
+    let ast = parse_and_check(source)?
+    
+    let print_fn = &ast.declarations[1]
+    let type_param = &print_fn.generic_params[0]
+    
+    assert_eq!(type_param.bounds.len(), 1)
+    assert_eq!(type_param.bounds[0], "Display")
+    
+    Ok(())
+}
+
+#[test]
+#[should_panic]
+fn test_type_mismatch() {
+    let source = "
+    fn test() {
+        let x: i32 = "hello"  // Type mismatch
+    }
+    "
+    let _ = parse_and_check(source).unwrap()
+}
+
+#[test]
+fn test_effect_types() -> Result<(), Error> {
+    let source = "
+    effect State<T> {
+        fn get() -> T
+        fn set(value: T)
+    }
+    
+    fn counter() -> i32 \ State<i32> {
+        let count = State::get()
+        State::set(count + 1)
+        count
+    }
+    "
+    let ast = parse_and_check(source)?
+    
+    let counter_fn = &ast.declarations[1]
+    let fn_type = counter_fn.type_info.unwrap()
+    
+    assert_eq!(fn_type.return_type.unwrap(), Type::I32)
+    assert_eq!(fn_type.effects.len(), 1)
+    assert!(matches!(fn_type.effects[0], Type::Effect("State", _)))
+    
+    Ok(())
+}
+
+#[test]
+fn test_dependent_types() -> Result<(), Error> {
+    let source = "
+    struct Vector<T, N: usize> {
+        data: [T; N]
+    }
+    
+    fn dot_product<T, N: usize>(a: Vector<T, N>, b: Vector<T, N>) -> T
+        where T: Num
+    {
+        // Implementation
+    }
+    "
+    let ast = parse_and_check(source)?
+    
+    let vector_struct = &ast.declarations[0]
+    assert_eq!(vector_struct.type_info.unwrap().generic_params.len(), 2)
+    
+    let dot_product_fn = &ast.declarations[1]
+    let fn_type = dot_product_fn.type_info.unwrap()
+    
+    assert_eq!(fn_type.generic_params.len(), 2)
+    assert!(fn_type.generic_params[1].is_dependent)
+    
+    Ok(())
+}
+
+#[test]
+fn test_refinement_types() -> Result<(), Error> {
+    let source = "
+    type PositiveInt = i32 where self > 0
+    
+    fn divide(x: i32, y: PositiveInt) -> f64 {
+        x as f64 / y as f64
+    }
+    "
+    let ast = parse_and_check(source)?
+    
+    let type_decl = &ast.declarations[0]
+    assert!(type_decl.type_info.unwrap().refinement.is_some())
+    
+    let divide_fn = &ast.declarations[1]
+    let param_type = divide_fn.parameters[1].type_info.unwrap()
+    assert!(param_type.refinement.is_some())
+    
+    Ok(())
+}
+
+#[test]
+fn test_linear_types() -> Result<(), Error> {
+    let source = "
+    linear type FileHandle {
+        fd: i32
+    }
+    
+    fn close(file: consume FileHandle) {
+        // Implementation
+    }
+    "
+    let ast = parse_and_check(source)?
+    
+    let file_type = &ast.declarations[0]
+    assert!(file_type.type_info.unwrap().is_linear)
+    
+    let close_fn = &ast.declarations[1]
+    assert!(close_fn.parameters[0].is_consumed)
+    
+    Ok(())
+}
+
+#[test]
+fn test_intersection_types() -> Result<(), Error> {
+    let source = "
+    trait Reader {
+        fn read(&mut self) -> Vec<u8>
+    }
+    
+    trait Writer {
+        fn write(&mut self, data: &[u8])
+    }
+    
+    fn process<T: Reader + Writer>(stream: &mut T) {
+        // Implementation
+    }
+    "
+    let ast = parse_and_check(source)?
+    
+    let process_fn = &ast.declarations[2]
+    let type_param = &process_fn.generic_params[0]
+    
+    assert_eq!(type_param.bounds.len(), 2)
+    assert!(type_param.bounds.contains(&"Reader"))
+    assert!(type_param.bounds.contains(&"Writer"))
+    
+    Ok(())
+}
+
+#[test]
+fn test_union_types() -> Result<(), Error> {
+    let source = "
+    type StringOrInt = String | i32
+    
+    fn process(value: StringOrInt) {
+        match value {
+            String(s) => println("String: {}", s),
+            i32(n) => println("Integer: {}", n)
+        }
+    }
+    "
+    let ast = parse_and_check(source)?
+    
+    let type_decl = &ast.declarations[0]
+    let union_type = type_decl.type_info.unwrap()
+    
+    assert_eq!(union_type.variants.len(), 2)
+    assert!(union_type.variants.contains(&Type::String))
+    assert!(union_type.variants.contains(&Type::I32))
+    
+    Ok(())
+}
+
+#[test]
+#[property_test]
+fn test_type_properties(expr: String) -> Result<(), Error> {
+    // Property: Well-typed expressions should type check
+    if is_well_typed(&expr) {
+        let ast = parse_and_check(&expr)?
+        assert!(ast.type_info.is_some())
+    }
+    
+    Ok(())
+}
+
+#[test]
+#[fuzz_test]
+fn test_type_checker_fuzzing(data: &[u8]) {
+    if let Ok(input) = String::from_utf8(data.to_vec()) {
+        let _ = parse_and_check(&input); // Should not crash
+    }
+}
+
+#[test]
+#[benchmark]
+fn bench_type_checker_performance() -> Result<(), Error> {
+    let source = include_str!("../examples/large_file.seo")
+    let _ = parse_and_check(source)?
+    Ok(())
+}
+
+// Helper function to parse and type check source code
+fn parse_and_check(source: &str) -> Result<AST, Error> {
+    let parser = Parser::new(source)
+    let ast = parser.parse()?
+    
+    let type_checker = TypeChecker::new()
+    type_checker.check_ast(&ast)?
+    
+    Ok(ast)
+}

@@ -1,0 +1,264 @@
+module Compiler::TypeChecker {
+    use Core::Types::{Type, TypeEnvironment, TypeError, Result}
+    use Core::Collections::{Vector, HashMap}
+    use Compiler::AST::*
+    use Compiler::Builtins
+
+    type TypeChecker {
+        env: TypeEnvironment,
+        current_module: Option<string>,
+        current_function: Option<FunctionType>,
+        errors: Vector<TypeError>
+    }
+
+    type FunctionType {
+        params: Vector<Type>,
+        return_type: Type,
+        is_async: bool,
+        effects: Vector<Effect>
+    }
+
+    type Effect {
+        IO,
+        Network,
+        Database,
+        FileSystem,
+        GPU,
+        Web
+    }
+
+    impl TypeChecker {
+        func new() -> Self {
+            let mut checker = TypeChecker {
+                env: TypeEnvironment::new(),
+                current_module: None,
+                current_function: None,
+                errors: Vector::new()
+            };
+            
+            // Register built-in types
+            checker.register_builtin_types();
+            checker
+        }
+
+        func check_program(&mut self, program: &Program) -> Result<()> {
+            // First pass: Register all type declarations
+            self.register_types(program)?;
+            
+            // Second pass: Check all declarations
+            for decl in program.declarations {
+                self.check_declaration(decl)?;
+            }
+
+            if self.errors.is_empty() {
+                Ok(())
+            } else {
+                Err(TypeError::Multiple(self.errors.clone()))
+            }
+        }
+
+        func register_builtin_types(&mut self) {
+            // Basic types
+            self.env.register_type("int", Type::Int);
+            self.env.register_type("float", Type::Float);
+            self.env.register_type("bool", Type::Bool);
+            self.env.register_type("string", Type::String);
+            
+            // Web types
+            self.env.register_type("Element", Type::Web(WebType::Element));
+            self.env.register_type("Event", Type::Web(WebType::Event));
+            self.env.register_type("Document", Type::Web(WebType::Document));
+            
+            // System types
+            self.env.register_type("File", Type::System(SystemType::File));
+            self.env.register_type("Socket", Type::System(SystemType::Socket));
+            self.env.register_type("Process", Type::System(SystemType::Process));
+            
+            // AI/ML types
+            self.env.register_type("Tensor", Type::ML(MLType::Tensor));
+            self.env.register_type("Matrix", Type::ML(MLType::Matrix));
+            self.env.register_type("Model", Type::ML(MLType::Model));
+            
+            // Async types
+            self.env.register_type("Future", Type::Async(Box::new(Type::Any)));
+            self.env.register_type("Stream", Type::Async(Box::new(Type::Any)));
+        }
+
+        func check_declaration(&mut self, decl: &Declaration) -> Result<Type> {
+            match decl {
+                Declaration::Module(module) => self.check_module(module),
+                Declaration::Function(func) => self.check_function(func),
+                Declaration::Variable(var) => self.check_variable(var),
+                Declaration::Type(type_decl) => self.check_type_declaration(type_decl),
+                Declaration::Use(use_decl) => self.check_use(use_decl),
+                Declaration::Block(block) => self.check_block(block),
+                Declaration::Expression(expr) => self.check_expression(expr)
+            }
+        }
+
+        func check_module(&mut self, module: &ModuleDecl) -> Result<Type> {
+            self.current_module = Some(module.name.clone());
+            
+            // Create new scope for module
+            self.env.push_scope();
+            
+            // Check all declarations in module
+            for decl in &module.declarations {
+                self.check_declaration(decl)?;
+            }
+            
+            self.env.pop_scope();
+            self.current_module = None;
+            
+            Ok(Type::Module(module.name.clone()))
+        }
+
+        func check_function(&mut self, func: &FunctionDecl) -> Result<Type> {
+            // Check parameter types
+            let mut param_types = Vector::new();
+            self.env.push_scope();
+            
+            for param in &func.params {
+                let param_type = self.resolve_type(&param.type_annotation)?;
+                self.env.register_variable(&param.name, param_type.clone());
+                param_types.push(param_type);
+            }
+            
+            // Check return type
+            let return_type = match &func.return_type {
+                Some(rt) => self.resolve_type(rt)?,
+                None => Type::Unit
+            };
+            
+            // Create function type for type checking body
+            let func_type = FunctionType {
+                params: param_types,
+                return_type: return_type.clone(),
+                is_async: func.is_async,
+                effects: self.infer_effects(&func.body)
+            };
+            
+            self.current_function = Some(func_type.clone());
+            
+            // Check function body
+            let body_type = self.check_block(&func.body)?;
+            
+            // Verify return type matches body
+            if !self.type_matches(&return_type, &body_type) {
+                return Err(TypeError::ReturnTypeMismatch {
+                    expected: return_type,
+                    found: body_type
+                });
+            }
+            
+            self.env.pop_scope();
+            self.current_function = None;
+            
+            Ok(Type::Function(Box::new(func_type)))
+        }
+
+        func check_expression(&mut self, expr: &Expression) -> Result<Type> {
+            match expr {
+                Expression::IntLiteral(_) => Ok(Type::Int),
+                Expression::FloatLiteral(_) => Ok(Type::Float),
+                Expression::StringLiteral(_) => Ok(Type::String),
+                Expression::BoolLiteral(_) => Ok(Type::Bool),
+                
+                Expression::Variable(name) => {
+                    self.env.lookup_variable(name)
+                        .ok_or_else(|| TypeError::UndefinedVariable(name.clone()))
+                },
+                
+                Expression::Binary(left, op, right) => {
+                    let left_type = self.check_expression(left)?;
+                    let right_type = self.check_expression(right)?;
+                    self.check_binary_op(&left_type, op, &right_type)
+                },
+                
+                Expression::Call(callee, args) => {
+                    let callee_type = self.check_expression(callee)?;
+                    self.check_function_call(&callee_type, args)
+                },
+                
+                Expression::Get(object, field) => {
+                    let obj_type = self.check_expression(object)?;
+                    self.check_field_access(&obj_type, field)
+                },
+                
+                // Web-specific expressions
+                Expression::DomQuery(selector) => {
+                    Ok(Type::Web(WebType::Element))
+                },
+                
+                Expression::EventHandler(event, handler) => {
+                    self.check_event_handler(event, handler)
+                },
+                
+                // AI/ML expressions
+                Expression::TensorOp(op, tensors) => {
+                    self.check_tensor_operation(op, tensors)
+                },
+                
+                Expression::ModelInference(model, input) => {
+                    self.check_model_inference(model, input)
+                },
+                
+                // Async expressions
+                Expression::Await(future) => {
+                    self.check_await_expression(future)
+                }
+            }
+        }
+
+        // Helper functions for type checking
+        func type_matches(&self, expected: &Type, found: &Type) -> bool {
+            match (expected, found) {
+                (Type::Any, _) | (_, Type::Any) => true,
+                (Type::Int, Type::Int) => true,
+                (Type::Float, Type::Float) => true,
+                (Type::String, Type::String) => true,
+                (Type::Bool, Type::Bool) => true,
+                
+                (Type::Function(f1), Type::Function(f2)) => {
+                    self.function_types_match(f1, f2)
+                },
+                
+                (Type::Web(w1), Type::Web(w2)) => w1 == w2,
+                (Type::ML(m1), Type::ML(m2)) => m1 == m2,
+                
+                (Type::Async(t1), Type::Async(t2)) => {
+                    self.type_matches(t1, t2)
+                },
+                
+                _ => false
+            }
+        }
+
+        func infer_effects(&self, block: &BlockStmt) -> Vector<Effect> {
+            let mut effects = Vector::new();
+            
+            // Analyze block for effects
+            for stmt in &block.statements {
+                match stmt {
+                    Statement::Expression(expr) => {
+                        match expr {
+                            Expression::Call(_, _) => {
+                                effects.push(Effect::IO);
+                            },
+                            Expression::DomQuery(_) => {
+                                effects.push(Effect::Web);
+                            },
+                            Expression::TensorOp(_, _) => {
+                                effects.push(Effect::GPU);
+                            },
+                            _ => {}
+                        }
+                    },
+                    _ => {}
+                }
+            }
+            
+            effects
+        }
+    }
+}

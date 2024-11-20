@@ -1,0 +1,214 @@
+// Token definitions for Seoggi language
+
+use std::fmt;
+use crate::error::Position;
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct Token {
+    pub type_: TokenType,
+    pub lexeme: String,
+    pub literal: Option<Literal>,
+    pub pos: Position,
+    pub metadata: TokenMetadata,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct TokenMetadata {
+    pub doc_comments: Vec<String>,
+    pub attributes: Vec<Attribute>,
+    pub visibility: Visibility,
+    pub is_pure: bool,
+    pub effects: Vec<String>,
+}
+
+impl Default for TokenMetadata {
+    fn default() -> Self {
+        Self {
+            doc_comments: Vec::new(),
+            attributes: Vec::new(),
+            visibility: Visibility::Module,
+            is_pure: false,
+            effects: Vec::new(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum Attribute {
+    Inline,
+    NoInline,
+    Virtual,
+    Override,
+    Pure,
+    Unsafe,
+    Deprecated(String),
+    Custom(String, Vec<String>),
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum Visibility {
+    Public,
+    Private,
+    Protected,
+    Module,
+    Internal,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum TokenType {
+    // Single-character tokens
+    LeftParen, RightParen, LeftBrace, RightBrace, LeftBracket, RightBracket,
+    Comma, Dot, Semicolon, Colon, Question, At, Hash, Dollar,
+    
+    // One or two character tokens
+    Plus, PlusPlus, PlusEqual,
+    Minus, MinusMinus, MinusEqual, Arrow, FatArrow,
+    Star, StarEqual,
+    Slash, SlashEqual,
+    Percent, PercentEqual,
+    Equal, EqualEqual, EqualEqualEqual,  // === for identity comparison
+    Bang, BangEqual, BangEqualEqual,     // !== for identity comparison
+    Greater, GreaterEqual, RightShift, RightShiftEqual,
+    Less, LessEqual, LeftShift, LeftShiftEqual,
+    Amp, AmpAmp, AmpEqual,
+    Pipe, PipePipe, PipeEqual,
+    Caret, CaretEqual,
+    
+    // Three character tokens
+    DotDotDot,  // Spread operator
+    
+    // Literals
+    Identifier(String),
+    StringLiteral(String),
+    CharLiteral(char),
+    IntLiteral(i64),
+    FloatLiteral(f64),
+    BoolLiteral(bool),
+    
+    // Keywords - Basic
+    Module, Import, Export, Use, As,
+    
+    // Keywords - Types and Classes
+    Class, Trait, Interface, Impl, Extends, Implements,
+    Type, TypeOf, Is, As_, InstanceOf,
+    
+    // Keywords - Functions and Variables
+    Function, Constructor, Let, Var, Const,
+    
+    // Keywords - Control Flow
+    If, Else, Match, While, For, Loop, In, Break, Continue,
+    Return, Yield, Async, Await, Try, Catch, Throw, Finally,
+    
+    // Keywords - Visibility
+    Public, Private, Protected, Internal,
+    
+    // Keywords - Modifiers
+    Static, Final, Abstract, Override,
+    Inline, Virtual, Pure, Impure,
+    
+    // Keywords - Memory Management
+    Allocate, Free, Move, Copy, Clone, Drop,
+    Box, Rc, Arc, Weak, Pin,
+    Borrow, BorrowMut, Ref, RefMut,
+    
+    // Keywords - Effects System
+    Effect, Handle, Resume, Suspend,
+    
+    // Keywords - Pattern Matching
+    Pattern, When, Guard, Bind,
+    
+    // Keywords - Generics and Constraints
+    Where, Bounded, Constrained, Of,
+    
+    // Keywords - Concurrency
+    Spawn, Channel, Select, Receive, Send,
+    Mutex, RwLock, Atomic, Volatile,
+    
+    // Keywords - Meta Programming
+    Macro, Quote, Unquote, Splice,
+    
+    // Keywords - Constants
+    True, False, Null, Undefined, Self_, Super,
+    
+    // Special tokens
+    DocComment(String),
+    Comment(String),
+    Attribute(Attribute),
+    
+    // Structural tokens
+    Indent, Dedent, Newline,
+    
+    // Error and EOF
+    Error(String),
+    EOF,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum Literal {
+    String(String),
+    Char(char),
+    Int(i64),
+    Float(f64),
+    Bool(bool),
+    Null,
+    Undefined,
+}
+
+impl fmt::Display for TokenType {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            TokenType::Identifier(s) => write!(f, "identifier '{}'", s),
+            TokenType::StringLiteral(s) => write!(f, "string \"{}\"", s),
+            TokenType::CharLiteral(c) => write!(f, "char '{}'", c),
+            TokenType::IntLiteral(n) => write!(f, "integer {}", n),
+            TokenType::FloatLiteral(n) => write!(f, "float {}", n),
+            TokenType::BoolLiteral(b) => write!(f, "boolean {}", b),
+            TokenType::DocComment(s) => write!(f, "doc comment \"{}\"", s),
+            TokenType::Comment(s) => write!(f, "comment \"{}\"", s),
+            TokenType::Error(s) => write!(f, "error: {}", s),
+            _ => write!(f, "{:?}", self),
+        }
+    }
+}
+
+impl Token {
+    pub fn new(type_: TokenType, lexeme: String, literal: Option<Literal>, pos: Position) -> Self {
+        Self {
+            type_,
+            lexeme,
+            literal,
+            pos,
+            metadata: TokenMetadata::default(),
+        }
+    }
+
+    pub fn with_metadata(mut self, metadata: TokenMetadata) -> Self {
+        self.metadata = metadata;
+        self
+    }
+
+    pub fn with_doc_comment(mut self, comment: String) -> Self {
+        self.metadata.doc_comments.push(comment);
+        self
+    }
+
+    pub fn with_attribute(mut self, attr: Attribute) -> Self {
+        self.metadata.attributes.push(attr);
+        self
+    }
+
+    pub fn with_visibility(mut self, visibility: Visibility) -> Self {
+        self.metadata.visibility = visibility;
+        self
+    }
+
+    pub fn with_purity(mut self, is_pure: bool) -> Self {
+        self.metadata.is_pure = is_pure;
+        self
+    }
+
+    pub fn with_effect(mut self, effect: String) -> Self {
+        self.metadata.effects.push(effect);
+        self
+    }
+}

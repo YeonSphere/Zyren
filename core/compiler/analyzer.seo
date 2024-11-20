@@ -1,0 +1,427 @@
+# Seoggi Semantic Analyzer
+# Performs type checking, effect tracking, and semantic validation
+
+use Core::Types::{Result, TypeError, Effect}
+use Core::Collections::{HashMap, Vector}
+use Compiler::AST::*
+use Core::System::{Visibility, TypeId}
+
+# Environment for tracking symbols and their types
+type Environment {
+    types: HashMap<String, TypeInfo>,
+    values: HashMap<String, ValueInfo>,
+    effects: Vector<Effect>,
+    parent: Option<Box<Environment>>,
+    scope_level: u32
+}
+
+# Type information including generics and effects
+type TypeInfo {
+    id: TypeId,
+    name: String,
+    kind: TypeKind,
+    generics: Vector<TypeParam>,
+    effects: Vector<Effect>,
+    visibility: Visibility,
+    span: Span
+}
+
+# Value information including mutability and thread safety
+type ValueInfo {
+    type_id: TypeId,
+    is_mutable: bool,
+    is_atomic: bool,
+    visibility: Visibility,
+    effects: Vector<Effect>,
+    span: Span
+}
+
+# Type parameters with constraints
+type TypeParam {
+    name: String,
+    bounds: Vector<TypeId>,
+    default_type: Option<TypeId>
+}
+
+# Main analyzer type
+type Analyzer {
+    env: Environment,
+    errors: Vector<TypeError>,
+    type_cache: HashMap<TypeId, TypeInfo>,
+    next_type_id: TypeId,
+    in_unsafe_block: bool,
+    effect_stack: Vector<Effect>
+}
+
+impl Analyzer {
+    # Create new analyzer
+    fn new() -> Self {
+        Analyzer {
+            env: Environment::new(),
+            errors: Vector::new(),
+            type_cache: HashMap::new(),
+            next_type_id: TypeId::new(0),
+            in_unsafe_block: false,
+            effect_stack: Vector::new()
+        }
+    }
+
+    # Main analysis entry point
+    fn analyze(&mut self, program: &Program) -> Result<()> {
+        # First pass: collect all type declarations
+        self.collect_types(program)?;
+        
+        # Second pass: analyze declarations
+        for decl in &program.declarations {
+            self.analyze_declaration(decl)?;
+        }
+        
+        # Check for unused declarations
+        self.check_unused()?;
+        
+        if self.errors.is_empty() {
+            Ok(())
+        } else {
+            Err(TypeError::Multiple(self.errors.clone()))
+        }
+    }
+
+    # Type collection pass
+    fn collect_types(&mut self, program: &Program) -> Result<()> {
+        for decl in &program.declarations {
+            match decl {
+                Declaration::Type(type_decl) => {
+                    self.register_type(type_decl)?;
+                },
+                Declaration::Class(class_decl) => {
+                    self.register_class(class_decl)?;
+                },
+                Declaration::Trait(trait_decl) => {
+                    self.register_trait(trait_decl)?;
+                },
+                Declaration::Effect(effect_decl) => {
+                    self.register_effect(effect_decl)?;
+                },
+                _ => {}
+            }
+        }
+        Ok(())
+    }
+
+    # Register a type declaration
+    fn register_type(&mut self, decl: &TypeDecl) -> Result<TypeId> {
+        let type_id = self.next_type_id();
+        
+        # Check for type name conflicts
+        if self.env.types.contains_key(&decl.name) {
+            return Err(TypeError::DuplicateType(decl.name.clone(), decl.span));
+        }
+        
+        # Create type info
+        let type_info = TypeInfo {
+            id: type_id,
+            name: decl.name.clone(),
+            kind: TypeKind::Struct(decl.fields.clone()),
+            generics: decl.generics.clone(),
+            effects: decl.effects.clone(),
+            visibility: decl.visibility,
+            span: decl.span
+        };
+        
+        # Register type
+        self.env.types.insert(decl.name.clone(), type_info.clone());
+        self.type_cache.insert(type_id, type_info);
+        
+        Ok(type_id)
+    }
+
+    # Analyze a declaration
+    fn analyze_declaration(&mut self, decl: &Declaration) -> Result<()> {
+        match decl {
+            Declaration::Function(func) => self.analyze_function(func),
+            Declaration::Variable(var) => self.analyze_variable(var),
+            Declaration::Class(class) => self.analyze_class(class),
+            Declaration::Trait(trait_) => self.analyze_trait(trait_),
+            Declaration::Impl(impl_) => self.analyze_impl(impl_),
+            Declaration::Effect(effect) => self.analyze_effect(effect),
+            _ => Ok(())
+        }
+    }
+
+    # Analyze a function declaration
+    fn analyze_function(&mut self, func: &FunctionDecl) -> Result<()> {
+        # Create new scope for function
+        self.enter_scope();
+        
+        # Register generic parameters
+        for param in &func.generics {
+            self.register_type_param(param)?;
+        }
+        
+        # Analyze parameters
+        for param in &func.params {
+            self.analyze_parameter(param)?;
+        }
+        
+        # Track effects
+        self.push_effects(&func.effects);
+        
+        # Analyze return type
+        if let Some(return_type) = &func.return_type {
+            self.check_type(return_type)?;
+        }
+        
+        # Analyze function body
+        self.analyze_block(&func.body)?;
+        
+        # Pop effects
+        self.pop_effects();
+        
+        # Leave function scope
+        self.leave_scope();
+        
+        Ok(())
+    }
+
+    # Analyze a class declaration
+    fn analyze_class(&mut self, class: &ClassDecl) -> Result<()> {
+        # Create new scope for class
+        self.enter_scope();
+        
+        # Register generic parameters
+        for param in &class.generics {
+            self.register_type_param(param)?;
+        }
+        
+        # Check superclass
+        if let Some(superclass) = &class.extends {
+            self.check_type(superclass)?;
+            self.check_class_inheritance(class, superclass)?;
+        }
+        
+        # Check implemented interfaces
+        for interface in &class.implements {
+            self.check_type(interface)?;
+            self.check_interface_implementation(class, interface)?;
+        }
+        
+        # Analyze fields
+        for field in &class.fields {
+            self.analyze_field(field)?;
+        }
+        
+        # Analyze methods
+        for method in &class.methods {
+            self.analyze_function(method)?;
+        }
+        
+        # Analyze constructors
+        for ctor in &class.constructors {
+            self.analyze_constructor(ctor)?;
+        }
+        
+        # Leave class scope
+        self.leave_scope();
+        
+        Ok(())
+    }
+
+    # Analyze a trait declaration
+    fn analyze_trait(&mut self, trait_: &TraitDecl) -> Result<()> {
+        # Create new scope for trait
+        self.enter_scope();
+        
+        # Register generic parameters
+        for param in &trait_.generics {
+            self.register_type_param(param)?;
+        }
+        
+        # Check supertraits
+        for supertrait in &trait_.supertraits {
+            self.check_type(supertrait)?;
+            self.check_trait_inheritance(trait_, supertrait)?;
+        }
+        
+        # Analyze associated types
+        for assoc_type in &trait_.associated_types {
+            self.analyze_associated_type(assoc_type)?;
+        }
+        
+        # Analyze trait methods
+        for method in &trait_.methods {
+            self.analyze_trait_method(method)?;
+        }
+        
+        # Leave trait scope
+        self.leave_scope();
+        
+        Ok(())
+    }
+
+    # Effect system analysis
+    fn analyze_effect(&mut self, effect: &EffectDecl) -> Result<()> {
+        # Create new scope for effect
+        self.enter_scope();
+        
+        # Register effect operations
+        for op in &effect.operations {
+            self.analyze_effect_operation(op)?;
+        }
+        
+        # Leave effect scope
+        self.leave_scope();
+        
+        Ok(())
+    }
+
+    # Type checking helpers
+    fn check_type(&mut self, type_: &TypeExpr) -> Result<TypeId> {
+        match &type_.kind {
+            TypeKind::Named(name, args) => {
+                # Look up named type
+                let type_info = self.lookup_type(name)?;
+                
+                # Check generic arguments
+                if args.len() != type_info.generics.len() {
+                    return Err(TypeError::WrongNumberOfTypeArguments(
+                        name.clone(),
+                        type_info.generics.len(),
+                        args.len(),
+                        type_.span
+                    ));
+                }
+                
+                # Check each argument
+                for (arg, param) in args.iter().zip(&type_info.generics) {
+                    let arg_id = self.check_type(arg)?;
+                    self.check_type_bounds(arg_id, &param.bounds, type_.span)?;
+                }
+                
+                Ok(type_info.id)
+            },
+            TypeKind::Function(params, return_type, effects) => {
+                # Check parameter types
+                for param in params {
+                    self.check_type(param)?;
+                }
+                
+                # Check return type
+                self.check_type(return_type)?;
+                
+                # Check effects
+                for effect in effects {
+                    self.check_effect(effect)?;
+                }
+                
+                Ok(self.function_type_id(params, return_type, effects))
+            },
+            TypeKind::Tuple(types) => {
+                # Check each tuple element type
+                for ty in types {
+                    self.check_type(ty)?;
+                }
+                
+                Ok(self.tuple_type_id(types))
+            },
+            TypeKind::Reference(target, mutable) => {
+                let target_id = self.check_type(target)?;
+                Ok(self.reference_type_id(target_id, *mutable))
+            }
+        }
+    }
+
+    # Effect checking
+    fn check_effect(&mut self, effect: &Effect) -> Result<()> {
+        match effect {
+            Effect::IO | Effect::Network | Effect::Database | Effect::GPU |
+            Effect::Web | Effect::Kernel | Effect::Async | Effect::Unsafe => Ok(()),
+            Effect::Custom(name) => {
+                if !self.env.effects.contains(effect) {
+                    Err(TypeError::UndefinedEffect(name.clone()))
+                } else {
+                    Ok(())
+                }
+            }
+        }
+    }
+
+    # Environment management
+    fn enter_scope(&mut self) {
+        let new_env = Environment {
+            types: HashMap::new(),
+            values: HashMap::new(),
+            effects: self.env.effects.clone(),
+            parent: Some(Box::new(std::mem::replace(&mut self.env, Environment::new()))),
+            scope_level: self.env.scope_level + 1
+        };
+        self.env = new_env;
+    }
+
+    fn leave_scope(&mut self) {
+        if let Some(parent) = self.env.parent.take() {
+            self.env = *parent;
+        }
+    }
+
+    fn push_effects(&mut self, effects: &[Effect]) {
+        self.effect_stack.extend(effects.iter().cloned());
+    }
+
+    fn pop_effects(&mut self) {
+        self.effect_stack.clear();
+    }
+
+    # Utility functions
+    fn next_type_id(&mut self) -> TypeId {
+        let id = self.next_type_id;
+        self.next_type_id = TypeId::new(id.0 + 1);
+        id
+    }
+
+    fn lookup_type(&self, name: &str) -> Result<&TypeInfo> {
+        self.env.lookup_type(name)
+            .ok_or_else(|| TypeError::UndefinedType(name.to_string()))
+    }
+}
+
+# Environment implementation
+impl Environment {
+    fn new() -> Self {
+        Environment {
+            types: HashMap::new(),
+            values: HashMap::new(),
+            effects: Vector::new(),
+            parent: None,
+            scope_level: 0
+        }
+    }
+
+    fn lookup_type(&self, name: &str) -> Option<&TypeInfo> {
+        self.types.get(name).or_else(|| {
+            self.parent.as_ref().and_then(|p| p.lookup_type(name))
+        })
+    }
+
+    fn lookup_value(&self, name: &str) -> Option<&ValueInfo> {
+        self.values.get(name).or_else(|| {
+            self.parent.as_ref().and_then(|p| p.lookup_value(name))
+        })
+    }
+}
+
+# Error types
+type TypeError {
+    UndefinedType(String),
+    UndefinedValue(String),
+    TypeMismatch(TypeId, TypeId, Span),
+    UndefinedEffect(String),
+    EffectViolation(Effect, Span),
+    MutabilityViolation(Span),
+    VisibilityViolation(String, Visibility, Span),
+    DuplicateDefinition(String, Span),
+    InvalidOverride(String, Span),
+    UnimplementedTrait(String, String, Span),
+    WrongNumberOfTypeArguments(String, usize, usize, Span),
+    RecursiveType(String, Span),
+    Multiple(Vector<TypeError>)
+}

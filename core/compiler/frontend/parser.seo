@@ -1,0 +1,286 @@
+// Seoggi Parser Implementation
+
+import { Token, TokenKind, TokenMetadata } from "./token"
+import { Lexer } from "./lexer"
+import { Error, ErrorKind } from "../error"
+
+// AST Node Types
+enum NodeKind {
+    // Declarations
+    Module,
+    Function,
+    Class,
+    Interface,
+    Enum,
+    Type,
+    Variable,
+    Constant,
+    
+    // Statements
+    Block,
+    If,
+    Match,
+    Loop,
+    For,
+    While,
+    Try,
+    Effect,
+    Return,
+    
+    // Expressions
+    Binary,
+    Unary,
+    Call,
+    Member,
+    Index,
+    Lambda,
+    Literal,
+    
+    // Types
+    TypeAnnotation,
+    TypeParameter,
+    TypeConstraint,
+    EffectType,
+    
+    // Patterns
+    Pattern,
+    PatternWildcard,
+    PatternLiteral,
+    PatternConstructor,
+    
+    // Memory
+    Box,
+    Rc,
+    Arc,
+    Pin,
+    
+    // Concurrency
+    Async,
+    Await,
+    Spawn,
+    Select
+}
+
+// AST Node Base
+struct Node {
+    kind: NodeKind
+    span: (usize, usize)  // Source location
+    metadata: TokenMetadata
+}
+
+// Parser State
+struct Parser {
+    lexer: Lexer
+    current: Token
+    peek: Token
+    errors: Vec<Error>
+    
+    // Constructor
+    new(lexer: Lexer) -> Parser {
+        let mut parser = Parser {
+            lexer,
+            current: Token::empty(),
+            peek: Token::empty(),
+            errors: Vec::new()
+        }
+        
+        // Prime the parser
+        parser.advance()
+        parser.advance()
+        parser
+    }
+    
+    // Core parsing methods
+    fn advance(&mut self) {
+        self.current = self.peek
+        self.peek = self.lexer.next_token()
+    }
+    
+    fn expect(&mut self, kind: TokenKind) -> Result<Token, Error> {
+        if self.current.kind == kind {
+            let token = self.current
+            self.advance()
+            Ok(token)
+        } else {
+            let error = Error::new(
+                ErrorKind::UnexpectedToken,
+                format!("Expected {:?}, got {:?}", kind, self.current.kind),
+                self.current.span
+            )
+            self.errors.push(error.clone())
+            Err(error)
+        }
+    }
+    
+    // High-level parsing
+    fn parse_module(&mut self) -> Result<Node, Error> {
+        let mut declarations = Vec::new()
+        
+        while !self.at_end() {
+            match self.parse_declaration() {
+                Ok(decl) => declarations.push(decl),
+                Err(e) => {
+                    self.errors.push(e)
+                    self.synchronize()
+                }
+            }
+        }
+        
+        Ok(Node {
+            kind: NodeKind::Module,
+            span: (0, self.current.span.1),
+            metadata: TokenMetadata::default()
+        })
+    }
+    
+    fn parse_declaration(&mut self) -> Result<Node, Error> {
+        match self.current.kind {
+            TokenKind::Fn => self.parse_function(),
+            TokenKind::Class => self.parse_class(),
+            TokenKind::Interface => self.parse_interface(),
+            TokenKind::Enum => self.parse_enum(),
+            TokenKind::Type => self.parse_type_alias(),
+            TokenKind::Let => self.parse_variable(),
+            TokenKind::Const => self.parse_constant(),
+            _ => Err(Error::new(
+                ErrorKind::UnexpectedToken,
+                "Expected declaration".to_string(),
+                self.current.span
+            ))
+        }
+    }
+    
+    // Statement parsing
+    fn parse_statement(&mut self) -> Result<Node, Error> {
+        match self.current.kind {
+            TokenKind::If => self.parse_if(),
+            TokenKind::Match => self.parse_match(),
+            TokenKind::Loop => self.parse_loop(),
+            TokenKind::For => self.parse_for(),
+            TokenKind::While => self.parse_while(),
+            TokenKind::Try => self.parse_try(),
+            TokenKind::Effect => self.parse_effect(),
+            TokenKind::Return => self.parse_return(),
+            _ => self.parse_expression()
+        }
+    }
+    
+    // Expression parsing
+    fn parse_expression(&mut self) -> Result<Node, Error> {
+        self.parse_assignment()
+    }
+    
+    fn parse_assignment(&mut self) -> Result<Node, Error> {
+        let expr = self.parse_or()?
+        
+        if self.match_token(TokenKind::Equal) {
+            let value = self.parse_assignment()?
+            // Handle assignment
+        }
+        
+        Ok(expr)
+    }
+    
+    // Type parsing
+    fn parse_type(&mut self) -> Result<Node, Error> {
+        let base = self.parse_primary_type()?
+        
+        if self.match_token(TokenKind::Lt) {
+            // Parse generic arguments
+        }
+        
+        if self.match_token(TokenKind::Bar) {
+            // Parse effect annotations
+        }
+        
+        Ok(base)
+    }
+    
+    // Pattern parsing
+    fn parse_pattern(&mut self) -> Result<Node, Error> {
+        match self.current.kind {
+            TokenKind::Underscore => self.parse_wildcard_pattern(),
+            TokenKind::Identifier => self.parse_identifier_pattern(),
+            TokenKind::LParen => self.parse_tuple_pattern(),
+            _ => self.parse_literal_pattern()
+        }
+    }
+    
+    // Memory management
+    fn parse_memory_operation(&mut self) -> Result<Node, Error> {
+        match self.current.kind {
+            TokenKind::Box => self.parse_box(),
+            TokenKind::Rc => self.parse_rc(),
+            TokenKind::Arc => self.parse_arc(),
+            TokenKind::Pin => self.parse_pin(),
+            _ => Err(Error::new(
+                ErrorKind::UnexpectedToken,
+                "Expected memory operation".to_string(),
+                self.current.span
+            ))
+        }
+    }
+    
+    // Concurrency
+    fn parse_concurrent_expression(&mut self) -> Result<Node, Error> {
+        match self.current.kind {
+            TokenKind::Async => self.parse_async(),
+            TokenKind::Await => self.parse_await(),
+            TokenKind::Spawn => self.parse_spawn(),
+            TokenKind::Select => self.parse_select(),
+            _ => Err(Error::new(
+                ErrorKind::UnexpectedToken,
+                "Expected concurrent expression".to_string(),
+                self.current.span
+            ))
+        }
+    }
+    
+    // Error recovery
+    fn synchronize(&mut self) {
+        self.advance()
+        
+        while !self.at_end() {
+            if self.previous().kind == TokenKind::Semicolon {
+                return
+            }
+            
+            match self.current.kind {
+                TokenKind::Fn |
+                TokenKind::Class |
+                TokenKind::Interface |
+                TokenKind::Enum |
+                TokenKind::Type |
+                TokenKind::Let |
+                TokenKind::Const => return,
+                _ => self.advance()
+            }
+        }
+    }
+    
+    // Utility methods
+    fn at_end(&self) -> bool {
+        self.current.kind == TokenKind::Eof
+    }
+    
+    fn match_token(&mut self, kind: TokenKind) -> bool {
+        if self.check(kind) {
+            self.advance()
+            true
+        } else {
+            false
+        }
+    }
+    
+    fn check(&self, kind: TokenKind) -> bool {
+        if self.at_end() {
+            false
+        } else {
+            self.current.kind == kind
+        }
+    }
+    
+    fn previous(&self) -> Token {
+        self.current
+    }
+}

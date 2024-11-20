@@ -1,153 +1,393 @@
 module Compiler::Parser {
-    use Core::Types::{Token, TokenType, Node, Position}
-    use Core::Error::{ParserError, Result}
-    use Core::AST::*
+    use Core::Types::{Result, ParserError, Position}
+    use Core::Collections::{Vector, HashMap}
+    use Compiler::Lexer::{Token, TokenType}
+    use Compiler::AST::*
+    use Core::System::{Effect, Visibility}
 
     type Parser {
         tokens: Vector<Token>,
         current: usize,
-        ast: Vector<Node>
+        had_error: bool,
+        panic_mode: bool,
+        errors: Vector<ParserError>,
+        scope_level: u64,
+        scope_id_counter: u64
     }
 
     impl Parser {
-        func new(tokens: Vector<Token>) -> Parser {
+        // Initialize a new parser
+        func new(tokens: Vector<Token>) -> Self {
             Parser {
                 tokens: tokens,
                 current: 0,
-                ast: Vector::new()
+                had_error: false,
+                panic_mode: false,
+                errors: Vector::new(),
+                scope_level: 0,
+                scope_id_counter: 0
             }
         }
 
         // Main parsing function
-        func parse(&mut self) -> Result<Vector<Node>> {
-            while !self.is_end() {
-                let node = self.parse_declaration()?;
-                self.ast.push(node);
-            }
-            Ok(self.ast)
-        }
+        func parse(&mut self) -> Result<Program> {
+            let mut program = Program::new();
 
-        // Top-level declarations
-        func parse_declaration(&mut self) -> Result<Node> {
-            match self.peek().type {
-                TokenType::Module => self.parse_module(),
-                TokenType::Use => self.parse_use(),
-                TokenType::Type => self.parse_type_declaration(),
-                TokenType::Func => self.parse_function(),
-                TokenType::Let => self.parse_variable(),
-                _ => self.parse_statement()
+            // Parse imports first
+            while self.match_token(TokenType::Use) {
+                match self.use_declaration() {
+                    Ok(decl) => program.imports.push(decl),
+                    Err(e) => {
+                        self.errors.push(e);
+                        self.synchronize();
+                    }
+                }
             }
-        }
 
-        // Module declaration
-        func parse_module(&mut self) -> Result<Node> {
-            self.consume(TokenType::Module, "Expected 'module' keyword")?;
-            let name = self.consume(TokenType::Identifier, "Expected module name")?;
-            self.consume(TokenType::LeftBrace, "Expected '{' after module name")?;
-            
-            let mut body = Vector::new();
-            while !self.check(TokenType::RightBrace) && !self.is_end() {
-                body.push(self.parse_declaration()?);
+            // Parse declarations
+            while !self.is_at_end() {
+                match self.declaration() {
+                    Ok(decl) => {
+                        if self.match_token(TokenType::Export) {
+                            program.exports.push(ExportDecl {
+                                item: Box::new(decl),
+                                alias: if self.match_token(TokenType::As) {
+                                    Some(self.consume(TokenType::Identifier, "Expected export alias")?.lexeme)
+                                } else {
+                                    None
+                                }
+                            });
+                        } else {
+                            program.declarations.push(decl);
+                        }
+                    },
+                    Err(e) => {
+                        self.errors.push(e);
+                        self.synchronize();
+                    }
+                }
             }
-            
-            self.consume(TokenType::RightBrace, "Expected '}' after module body")?;
-            Ok(Node::Module { name: name.lexeme, body: body })
-        }
 
-        // Function declaration
-        func parse_function(&mut self) -> Result<Node> {
-            self.consume(TokenType::Func, "Expected 'func' keyword")?;
-            let name = self.consume(TokenType::Identifier, "Expected function name")?;
-            
-            // Parse parameters
-            self.consume(TokenType::LeftParen, "Expected '(' after function name")?;
-            let params = self.parse_parameters()?;
-            self.consume(TokenType::RightParen, "Expected ')' after parameters")?;
-            
-            // Parse return type
-            let return_type = if self.match_token(TokenType::Arrow) {
-                Some(self.parse_type()?)
+            if self.had_error {
+                Err(ParserError::MultipleErrors(self.errors.clone()))
             } else {
-                None
+                Ok(program)
+            }
+        }
+
+        // Declaration parsing
+        func declaration(&mut self) -> Result<Declaration> {
+            if self.match_token(TokenType::Module) {
+                self.module_declaration()
+            } else if self.match_token(TokenType::Class) {
+                self.class_declaration()
+            } else if self.match_token(TokenType::Trait) {
+                self.trait_declaration()
+            } else if self.match_token(TokenType::Interface) {
+                self.interface_declaration()
+            } else if self.match_token(TokenType::Function) {
+                self.function_declaration()
+            } else if self.match_token(TokenType::Let) || self.match_token(TokenType::Var) {
+                self.variable_declaration()
+            } else if self.match_token(TokenType::Type) {
+                self.type_declaration()
+            } else if self.match_token(TokenType::Effect) {
+                self.effect_declaration()
+            } else if self.match_token(TokenType::Import) {
+                self.import_declaration()
+            } else if self.match_token(TokenType::Export) {
+                self.export_declaration()
+            } else {
+                self.statement()
+            }
+        }
+
+        // Class parsing
+        func class_declaration(&mut self) -> Result<Declaration> {
+            let name = self.consume(TokenType::Identifier, "Expected class name")?;
+            let mut class = ClassDecl::new(name.lexeme);
+            
+            // Parse generics
+            if self.match_token(TokenType::Less) {
+                class.generics = self.generic_parameters()?;
+            }
+            
+            // Parse inheritance
+            if self.match_token(TokenType::Extends) {
+                class.superclass = Some(self.type_expression()?);
+            }
+            
+            if self.match_token(TokenType::Implements) {
+                class.interfaces = self.separated_list(TokenType::Comma, |p| p.type_expression())?;
+            }
+            
+            // Parse effects
+            if self.match_token(TokenType::With) {
+                class.effects = self.effect_list()?;
+            }
+            
+            // Parse class body
+            self.consume(TokenType::LeftBrace, "Expected '{' before class body")?;
+            
+            while !self.check(TokenType::RightBrace) && !self.is_at_end() {
+                match self.class_member()? {
+                    ClassMember::Field(f) => class.fields.push(f),
+                    ClassMember::Method(m) => class.methods.push(m),
+                    ClassMember::Constructor(c) => class.constructors.push(c),
+                }
+            }
+            
+            self.consume(TokenType::RightBrace, "Expected '}' after class body")?;
+            
+            Ok(Declaration::Class(class))
+        }
+
+        // Trait parsing
+        func trait_declaration(&mut self) -> Result<Declaration> {
+            let name = self.consume(TokenType::Identifier, "Expected trait name")?;
+            let mut trait_decl = TraitDecl::new(name.lexeme);
+            
+            // Parse generics
+            if self.match_token(TokenType::Less) {
+                trait_decl.generics = self.generic_parameters()?;
+            }
+            
+            // Parse super traits
+            if self.match_token(TokenType::Extends) {
+                trait_decl.supertraits = self.separated_list(TokenType::Comma, |p| p.type_expression())?;
+            }
+            
+            // Parse associated types
+            if self.match_token(TokenType::Where) {
+                trait_decl.associated_types = self.associated_type_list()?;
+            }
+            
+            // Parse trait body
+            self.consume(TokenType::LeftBrace, "Expected '{' before trait body")?;
+            
+            while !self.check(TokenType::RightBrace) && !self.is_at_end() {
+                trait_decl.body.push(self.trait_member()?);
+            }
+            
+            self.consume(TokenType::RightBrace, "Expected '}' after trait body")?;
+            
+            Ok(Declaration::Trait(trait_decl))
+        }
+
+        // Effect parsing
+        func effect_declaration(&mut self) -> Result<Declaration> {
+            let name = self.consume(TokenType::Identifier, "Expected effect name")?;
+            let mut effect = EffectDecl::new(name.lexeme);
+            
+            // Parse effect parameters
+            if self.match_token(TokenType::Less) {
+                effect.params = self.type_parameter_list()?;
+            }
+            
+            // Parse effect body
+            self.consume(TokenType::LeftBrace, "Expected '{' before effect body")?;
+            
+            while !self.check(TokenType::RightBrace) && !self.is_at_end() {
+                effect.operations.push(self.function_declaration()?);
+            }
+            
+            self.consume(TokenType::RightBrace, "Expected '}' after effect body")?;
+            
+            Ok(Declaration::Effect(effect))
+        }
+
+        // Pattern matching
+        func pattern(&mut self) -> Result<Pattern> {
+            if self.match_token(TokenType::Underscore) {
+                Ok(Pattern::Wildcard)
+            } else if self.match_token(TokenType::LeftParen) {
+                self.tuple_pattern()
+            } else if self.match_token(TokenType::Identifier) {
+                let name = self.previous.lexeme.clone();
+                
+                if self.match_token(TokenType::LeftParen) {
+                    // Constructor pattern
+                    let patterns = self.separated_list(TokenType::Comma, |p| p.pattern())?;
+                    self.consume(TokenType::RightParen, "Expected ')' after constructor pattern")?;
+                    Ok(Pattern::Constructor(name, patterns))
+                } else {
+                    // Variable binding pattern
+                    if self.match_token(TokenType::At) {
+                        let sub_pattern = self.pattern()?;
+                        Ok(Pattern::Binding(name, Some(Box::new(sub_pattern))))
+                    } else {
+                        Ok(Pattern::Binding(name, None))
+                    }
+                }
+            } else if self.match_token(TokenType::Bar) {
+                // Or pattern
+                let mut patterns = vec![self.pattern()?];
+                while self.match_token(TokenType::Bar) {
+                    patterns.push(self.pattern()?);
+                }
+                Ok(Pattern::Or(patterns))
+            } else {
+                // Literal pattern
+                let expr = self.primary()?;
+                Ok(Pattern::Literal(expr))
+            }
+        }
+
+        // Type system
+        func type_expression(&mut self) -> Result<TypeExpr> {
+            let start_pos = self.current.pos;
+            let kind = if self.match_token(TokenType::Identifier) {
+                let name = self.previous.lexeme.clone();
+                
+                if self.match_token(TokenType::Less) {
+                    // Generic type
+                    let params = self.separated_list(TokenType::Comma, |p| p.type_expression())?;
+                    self.consume(TokenType::Greater, "Expected '>' after type parameters")?;
+                    TypeKind::Named(Identifier::new(&name), params)
+                } else {
+                    TypeKind::Named(Identifier::new(&name), vec![])
+                }
+            } else if self.match_token(TokenType::LeftParen) {
+                // Tuple or function type
+                let mut params = vec![self.type_expression()?];
+                
+                while self.match_token(TokenType::Comma) {
+                    if self.check(TokenType::RightParen) {
+                        break;
+                    }
+                    params.push(self.type_expression()?);
+                }
+                
+                self.consume(TokenType::RightParen, "Expected ')' after type parameters")?;
+                
+                if self.match_token(TokenType::Arrow) {
+                    // Function type
+                    let return_type = Box::new(self.type_expression()?);
+                    let effects = if self.match_token(TokenType::With) {
+                        self.effect_list()?
+                    } else {
+                        vec![]
+                    };
+                    TypeKind::Function(params, return_type, effects)
+                } else {
+                    // Tuple type
+                    TypeKind::Tuple(params)
+                }
+            } else if self.match_token(TokenType::LeftBracket) {
+                // Array type
+                let element_type = Box::new(self.type_expression()?);
+                let size = if self.match_token(TokenType::Semicolon) {
+                    Some(Box::new(self.expression()?))
+                } else {
+                    None
+                };
+                self.consume(TokenType::RightBracket, "Expected ']' after array type")?;
+                TypeKind::Array(element_type, size)
+            } else if self.match_token(TokenType::Ampersand) {
+                // Reference type
+                let is_mutable = self.match_token(TokenType::Mut);
+                let referenced_type = Box::new(self.type_expression()?);
+                TypeKind::Reference(referenced_type, is_mutable)
+            } else {
+                return Err(ParserError::ExpectedTypeExpression(self.current));
             };
             
-            // Parse body
-            self.consume(TokenType::LeftBrace, "Expected '{' before function body")?;
-            let body = self.parse_block()?;
-            
-            Ok(Node::Function {
-                name: name.lexeme,
-                params: params,
-                return_type: return_type,
-                body: body
+            Ok(TypeExpr {
+                kind,
+                pos: start_pos,
             })
         }
 
-        // Statement parsing
-        func parse_statement(&mut self) -> Result<Node> {
-            match self.peek().type {
-                TokenType::If => self.parse_if(),
-                TokenType::While => self.parse_while(),
-                TokenType::Return => self.parse_return(),
-                TokenType::LeftBrace => self.parse_block(),
-                _ => self.parse_expression_statement()
-            }
-        }
-
-        // Expression parsing
-        func parse_expression(&mut self) -> Result<Node> {
-            self.parse_assignment()
-        }
-
-        func parse_assignment(&mut self) -> Result<Node> {
-            let expr = self.parse_equality()?;
-            
-            if self.match_token(TokenType::Equal) {
-                let value = self.parse_assignment()?;
-                match expr {
-                    Node::Variable { name } => {
-                        Ok(Node::Assignment {
-                            name: name,
-                            value: Box::new(value)
-                        })
-                    },
-                    _ => Err(ParserError::InvalidAssignmentTarget)
-                }
-            } else {
-                Ok(expr)
-            }
-        }
-
-        // Helper functions
+        // Helper methods
         func advance(&mut self) -> Token {
-            if !self.is_end() {
-                self.current += 1;
+            self.previous = self.current.clone();
+            
+            loop {
+                self.current = self.tokens[self.current].clone();
+                if self.current.type_ != TokenType::Error {
+                    break;
+                }
+                
+                self.error_at_current(&self.current.lexeme);
             }
-            self.previous()
+            
+            self.previous.clone()
         }
-
-        func peek(&self) -> Token {
-            self.tokens[self.current]
-        }
-
-        func previous(&self) -> Token {
-            self.tokens[self.current - 1]
-        }
-
-        func is_end(&self) -> bool {
-            self.peek().type == TokenType::EOF
-        }
-
-        func consume(&mut self, type: TokenType, message: string) -> Result<Token> {
-            if self.check(type) {
+        
+        func consume(&mut self, type_: TokenType, message: &str) -> Result<Token> {
+            if self.check(type_) {
                 Ok(self.advance())
             } else {
-                Err(ParserError::ExpectedToken {
-                    expected: type,
-                    found: self.peek().type,
-                    message: message
-                })
+                Err(ParserError::ExpectedToken(type_, message, self.current.pos))
             }
+        }
+        
+        func match_token(&mut self, type_: TokenType) -> bool {
+            if self.check(type_) {
+                self.advance();
+                true
+            } else {
+                false
+            }
+        }
+        
+        func check(&self, type_: TokenType) -> bool {
+            if self.is_at_end() {
+                false
+            } else {
+                self.current.type_ == type_
+            }
+        }
+        
+        func is_at_end(&self) -> bool {
+            self.current.type_ == TokenType::Eof
+        }
+        
+        func synchronize(&mut self) {
+            self.panic_mode = false;
+            
+            while !self.is_at_end() {
+                if self.previous.type_ == TokenType::Semicolon {
+                    return;
+                }
+                
+                match self.current.type_ {
+                    TokenType::Class |
+                    TokenType::Function |
+                    TokenType::Let |
+                    TokenType::For |
+                    TokenType::If |
+                    TokenType::While |
+                    TokenType::Return |
+                    TokenType::Import |
+                    TokenType::Export => return,
+                    _ => {}
+                }
+                
+                self.advance();
+            }
+        }
+        
+        func error_at_current(&mut self, message: &str) {
+            self.error_at(self.current.clone(), message);
+        }
+        
+        func error_at(&mut self, token: Token, message: &str) {
+            if self.panic_mode {
+                return;
+            }
+            self.panic_mode = true;
+            self.had_error = true;
+            
+            eprintln!("[line {}] Error", token.pos.line);
+            
+            match token.type_ {
+                TokenType::Eof => eprint!(" at end"),
+                TokenType::Error => {},
+                _ => eprint!(" at '{}'", token.lexeme),
+            }
+            
+            eprintln!(": {}", message);
         }
     }
 }

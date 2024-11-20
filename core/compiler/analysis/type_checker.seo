@@ -1,0 +1,259 @@
+// Seoggi Type Checker Implementation
+
+import { Node, NodeKind } from "../frontend/parser"
+import { Error, ErrorKind } from "../error"
+import { Type, TypeKind } from "./types"
+import { Effect, EffectKind } from "./effects"
+
+// Type Environment
+struct TypeEnv {
+    types: HashMap<String, Type>
+    effects: HashMap<String, Effect>
+    constraints: Vec<TypeConstraint>
+    
+    // Constructor
+    new() -> TypeEnv {
+        TypeEnv {
+            types: HashMap::new(),
+            effects: HashMap::new(),
+            constraints: Vec::new()
+        }
+    }
+    
+    // Environment operations
+    fn add_type(&mut self, name: String, ty: Type) {
+        self.types.insert(name, ty)
+    }
+    
+    fn add_effect(&mut self, name: String, effect: Effect) {
+        self.effects.insert(name, effect)
+    }
+    
+    fn add_constraint(&mut self, constraint: TypeConstraint) {
+        self.constraints.push(constraint)
+    }
+}
+
+// Type Checker
+struct TypeChecker {
+    env: TypeEnv
+    errors: Vec<Error>
+    
+    // Constructor
+    new() -> TypeChecker {
+        TypeChecker {
+            env: TypeEnv::new(),
+            errors: Vec::new()
+        }
+    }
+    
+    // Type checking entry point
+    fn check_module(&mut self, node: &Node) -> Result<Type, Error> {
+        for decl in node.declarations {
+            self.check_declaration(&decl)?
+        }
+        Ok(Type::Unit)
+    }
+    
+    // Declaration checking
+    fn check_declaration(&mut self, node: &Node) -> Result<Type, Error> {
+        match node.kind {
+            NodeKind::Function => self.check_function(node),
+            NodeKind::Class => self.check_class(node),
+            NodeKind::Interface => self.check_interface(node),
+            NodeKind::Enum => self.check_enum(node),
+            NodeKind::Type => self.check_type_alias(node),
+            NodeKind::Variable => self.check_variable(node),
+            NodeKind::Constant => self.check_constant(node),
+            _ => Err(Error::new(
+                ErrorKind::TypeError,
+                "Expected declaration".to_string(),
+                node.span
+            ))
+        }
+    }
+    
+    // Expression type checking
+    fn check_expression(&mut self, node: &Node) -> Result<Type, Error> {
+        match node.kind {
+            NodeKind::Binary => self.check_binary(node),
+            NodeKind::Unary => self.check_unary(node),
+            NodeKind::Call => self.check_call(node),
+            NodeKind::Member => self.check_member(node),
+            NodeKind::Index => self.check_index(node),
+            NodeKind::Lambda => self.check_lambda(node),
+            NodeKind::Literal => self.check_literal(node),
+            _ => Err(Error::new(
+                ErrorKind::TypeError,
+                "Expected expression".to_string(),
+                node.span
+            ))
+        }
+    }
+    
+    // Type system features
+    fn check_generic(&mut self, node: &Node) -> Result<Type, Error> {
+        let params = self.check_type_parameters(node)?
+        let constraints = self.check_type_constraints(node)?
+        let body = self.check_generic_body(node)?
+        
+        Ok(Type::Generic {
+            params,
+            constraints,
+            body: Box::new(body)
+        })
+    }
+    
+    fn check_dependent(&mut self, node: &Node) -> Result<Type, Error> {
+        let name = node.name.clone()
+        let value = self.check_expression(&node.value)?
+        let body = self.check_type(&node.body)?
+        
+        Ok(Type::Dependent {
+            name,
+            value: Box::new(value),
+            body: Box::new(body)
+        })
+    }
+    
+    fn check_refinement(&mut self, node: &Node) -> Result<Type, Error> {
+        let base = self.check_type(&node.base)?
+        let predicate = self.check_expression(&node.predicate)?
+        
+        Ok(Type::Refinement {
+            base: Box::new(base),
+            predicate: Box::new(predicate)
+        })
+    }
+    
+    // Effect system
+    fn check_effect(&mut self, node: &Node) -> Result<Effect, Error> {
+        match node.kind {
+            NodeKind::Effect => {
+                let name = node.name.clone()
+                let operations = self.check_effect_operations(node)?
+                let handlers = self.check_effect_handlers(node)?
+                
+                Ok(Effect {
+                    name,
+                    operations,
+                    handlers
+                })
+            },
+            _ => Err(Error::new(
+                ErrorKind::TypeError,
+                "Expected effect".to_string(),
+                node.span
+            ))
+        }
+    }
+    
+    fn check_effect_handler(&mut self, node: &Node) -> Result<Type, Error> {
+        let effect = self.check_effect(&node.effect)?
+        let operations = self.check_handler_operations(node)?
+        
+        Ok(Type::Handler {
+            effect,
+            operations
+        })
+    }
+    
+    // Memory management
+    fn check_memory(&mut self, node: &Node) -> Result<Type, Error> {
+        match node.kind {
+            NodeKind::Box => {
+                let inner = self.check_type(&node.inner)?
+                Ok(Type::Box(Box::new(inner)))
+            },
+            NodeKind::Rc => {
+                let inner = self.check_type(&node.inner)?
+                Ok(Type::Rc(Box::new(inner)))
+            },
+            NodeKind::Arc => {
+                let inner = self.check_type(&node.inner)?
+                Ok(Type::Arc(Box::new(inner)))
+            },
+            NodeKind::Pin => {
+                let inner = self.check_type(&node.inner)?
+                Ok(Type::Pin(Box::new(inner)))
+            },
+            _ => Err(Error::new(
+                ErrorKind::TypeError,
+                "Expected memory type".to_string(),
+                node.span
+            ))
+        }
+    }
+    
+    // Concurrency
+    fn check_concurrent(&mut self, node: &Node) -> Result<Type, Error> {
+        match node.kind {
+            NodeKind::Async => {
+                let inner = self.check_type(&node.inner)?
+                Ok(Type::Future(Box::new(inner)))
+            },
+            NodeKind::Spawn => {
+                let inner = self.check_type(&node.inner)?
+                Ok(Type::Thread(Box::new(inner)))
+            },
+            _ => Err(Error::new(
+                ErrorKind::TypeError,
+                "Expected concurrent type".to_string(),
+                node.span
+            ))
+        }
+    }
+    
+    // Constraint solving
+    fn solve_constraints(&mut self) -> Result<(), Error> {
+        while !self.env.constraints.is_empty() {
+            let constraint = self.env.constraints.pop().unwrap()
+            self.solve_constraint(constraint)?
+        }
+        Ok(())
+    }
+    
+    fn solve_constraint(&mut self, constraint: TypeConstraint) -> Result<(), Error> {
+        match constraint {
+            TypeConstraint::Subtype(sub, sup) => {
+                if !self.is_subtype(&sub, &sup) {
+                    return Err(Error::new(
+                        ErrorKind::TypeError,
+                        format!("{:?} is not a subtype of {:?}", sub, sup),
+                        constraint.span
+                    ))
+                }
+            },
+            TypeConstraint::Effect(eff, ctx) => {
+                if !self.is_effect_handled(eff, ctx) {
+                    return Err(Error::new(
+                        ErrorKind::TypeError,
+                        format!("Effect {:?} is not handled in context {:?}", eff, ctx),
+                        constraint.span
+                    ))
+                }
+            }
+        }
+        Ok(())
+    }
+    
+    // Utility methods
+    fn is_subtype(&self, sub: &Type, sup: &Type) -> bool {
+        match (sub, sup) {
+            (Type::Unit, Type::Unit) => true,
+            (Type::Bool, Type::Bool) => true,
+            (Type::Int, Type::Int) => true,
+            (Type::Float, Type::Float) => true,
+            (Type::String, Type::String) => true,
+            (Type::Function(params1, ret1), Type::Function(params2, ret2)) => {
+                self.is_subtype_params(params2, params1) && // Contravariant
+                self.is_subtype(ret1, ret2)  // Covariant
+            },
+            _ => false
+        }
+    }
+    
+    fn is_effect_handled(&self, effect: &Effect, context: &Vec<Effect>) -> bool {
+        context.contains(effect)
+    }
+}

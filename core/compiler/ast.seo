@@ -1,0 +1,554 @@
+// Seoggi AST Implementation
+// Inspired by Rust, Swift, and Kotlin AST designs
+
+use std::collections::HashMap;
+use std::sync::Arc;
+use std::fmt::{self, Display};
+
+// Base trait for all AST nodes
+pub trait Node: Display {
+    fn pos(&self) -> Position;
+    fn node_type(&self) -> NodeType;
+    fn visit<V: Visitor>(&self, visitor: &mut V) -> Result<(), Error>;
+}
+
+// Position tracking for error reporting
+#[derive(Clone, Debug, PartialEq)]
+pub struct Position {
+    pub file: Arc<str>,
+    pub line: usize,
+    pub column: usize,
+    pub offset: usize,
+}
+
+// Node types for the AST
+#[derive(Clone, Debug, PartialEq)]
+pub enum NodeType {
+    // Declarations
+    Module(ModuleDecl),
+    Class(ClassDecl),
+    Trait(TraitDecl),
+    Interface(InterfaceDecl),
+    Function(FunctionDecl),
+    Variable(VarDecl),
+    
+    // Types
+    Type(TypeExpr),
+    GenericParam(GenericParamDecl),
+    Effect(EffectDecl),
+    
+    // Statements
+    Block(BlockStmt),
+    If(IfStmt),
+    Match(MatchStmt),
+    Loop(LoopStmt),
+    Return(ReturnStmt),
+    
+    // Expressions
+    Binary(BinaryExpr),
+    Unary(UnaryExpr),
+    Call(CallExpr),
+    Member(MemberExpr),
+    Lambda(LambdaExpr),
+    
+    // Patterns
+    Pattern(PatternExpr),
+    
+    // Literals
+    IntLiteral(i64),
+    FloatLiteral(f64),
+    StringLiteral(Arc<str>),
+    BoolLiteral(bool),
+}
+
+// Class declaration
+#[derive(Clone, Debug)]
+pub struct ClassDecl {
+    pub name: Identifier,
+    pub generics: Vec<GenericParamDecl>,
+    pub superclass: Option<TypeExpr>,
+    pub interfaces: Vec<TypeExpr>,
+    pub body: Vec<Box<dyn Node>>,
+    pub visibility: Visibility,
+    pub effects: Vec<EffectDecl>,
+}
+
+// Trait declaration
+#[derive(Clone, Debug)]
+pub struct TraitDecl {
+    pub name: Identifier,
+    pub generics: Vec<GenericParamDecl>,
+    pub supertraits: Vec<TypeExpr>,
+    pub body: Vec<Box<dyn Node>>,
+    pub associated_types: Vec<TypeExpr>,
+    pub effects: Vec<EffectDecl>,
+}
+
+// Effect system
+#[derive(Clone, Debug)]
+pub struct EffectDecl {
+    pub name: Identifier,
+    pub params: Vec<TypeExpr>,
+    pub handlers: Vec<FunctionDecl>,
+}
+
+// Pattern matching
+#[derive(Clone, Debug)]
+pub struct PatternExpr {
+    pub kind: PatternKind,
+    pub guard: Option<Box<dyn Node>>,
+}
+
+#[derive(Clone, Debug)]
+pub enum PatternKind {
+    Literal(Box<dyn Node>),
+    Constructor(TypeExpr, Vec<PatternExpr>),
+    Binding(Identifier, Option<Box<PatternExpr>>),
+    Tuple(Vec<PatternExpr>),
+    Or(Vec<PatternExpr>),
+}
+
+// Type system
+#[derive(Clone, Debug)]
+pub struct TypeExpr {
+    pub kind: TypeKind,
+    pub pos: Position,
+}
+
+#[derive(Clone, Debug)]
+pub enum TypeKind {
+    Named(Identifier, Vec<TypeExpr>),
+    Function(Vec<TypeExpr>, Box<TypeExpr>, Vec<EffectDecl>),
+    Tuple(Vec<TypeExpr>),
+    Array(Box<TypeExpr>, Option<Box<dyn Node>>),
+    Reference(Box<TypeExpr>, bool), // bool for mutability
+    Generic(Identifier),
+}
+
+// Visibility modifiers
+#[derive(Clone, Debug, PartialEq)]
+pub enum Visibility {
+    Public,
+    Protected,
+    Private,
+    Internal,
+}
+
+// Error handling
+#[derive(Debug)]
+pub struct Error {
+    pub kind: ErrorKind,
+    pub pos: Position,
+    pub message: String,
+}
+
+#[derive(Debug)]
+pub enum ErrorKind {
+    Syntax,
+    Type,
+    Name,
+    Effect,
+}
+
+// Visitor pattern for AST traversal
+pub trait Visitor {
+    fn visit_node(&mut self, node: &dyn Node) -> Result<(), Error>;
+    fn visit_class(&mut self, class: &ClassDecl) -> Result<(), Error>;
+    fn visit_trait(&mut self, trait_: &TraitDecl) -> Result<(), Error>;
+    fn visit_function(&mut self, func: &FunctionDecl) -> Result<(), Error>;
+    fn visit_effect(&mut self, effect: &EffectDecl) -> Result<(), Error>;
+    // ... other visitor methods
+}
+
+// Implementation of common functionality
+impl Position {
+    pub fn new(file: &str, line: usize, column: usize, offset: usize) -> Self {
+        Self {
+            file: Arc::from(file),
+            line,
+            column,
+            offset,
+        }
+    }
+}
+
+impl Display for Position {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}:{}:{}", self.file, self.line, self.column)
+    }
+}
+
+// Helper functions for AST construction
+pub mod builder {
+    use super::*;
+    
+    pub fn create_class(name: &str, pos: Position) -> ClassDecl {
+        ClassDecl {
+            name: Identifier::new(name),
+            generics: Vec::new(),
+            superclass: None,
+            interfaces: Vec::new(),
+            body: Vec::new(),
+            visibility: Visibility::Internal,
+            effects: Vec::new(),
+        }
+    }
+    
+    pub fn create_trait(name: &str, pos: Position) -> TraitDecl {
+        TraitDecl {
+            name: Identifier::new(name),
+            generics: Vec::new(),
+            supertraits: Vec::new(),
+            body: Vec::new(),
+            associated_types: Vec::new(),
+            effects: Vec::new(),
+        }
+    }
+    
+    // ... other builder functions
+}
+
+// Root node for the entire program
+type Program {
+    declarations: Vector<Declaration>,
+    imports: Vector<UseDecl>,
+    exports: Vector<ExportDecl>
+}
+
+impl Program {
+    func new() -> Self {
+        Program {
+            declarations: Vector::new(),
+            imports: Vector::new(),
+            exports: Vector::new()
+        }
+    }
+}
+
+// All possible declaration types
+type Declaration {
+    Module(ModuleDecl),
+    Function(FunctionDecl),
+    Variable(VarDecl),
+    Type(TypeDecl),
+    Use(UseDecl),
+    Export(ExportDecl),
+    Class(ClassDecl),
+    Interface(InterfaceDecl),
+    Trait(TraitDecl),
+    Impl(ImplDecl),
+    Effect(EffectDecl),
+    Block(BlockStmt),
+    Expression(Expression)
+}
+
+// Module declaration with visibility and effects
+type ModuleDecl {
+    name: string,
+    declarations: Vector<Declaration>,
+    visibility: Visibility,
+    effects: Vector<Effect>
+}
+
+// Function declaration with effects and async support
+type FunctionDecl {
+    name: string,
+    params: Vector<Parameter>,
+    return_type: Option<Type>,
+    effects: Vector<Effect>,
+    is_async: bool,
+    is_extern: bool,
+    visibility: Visibility,
+    generics: Vector<GenericParam>,
+    where_clause: Option<WhereClause>,
+    body: BlockStmt
+}
+
+// Variable declaration with mutability and thread safety
+type VarDecl {
+    name: string,
+    type_annotation: Option<Type>,
+    initializer: Option<Expression>,
+    is_mutable: bool,
+    is_atomic: bool,
+    visibility: Visibility
+}
+
+// Enhanced type declaration
+type TypeDecl {
+    name: string,
+    fields: Vector<Field>,
+    methods: Vector<FunctionDecl>,
+    generics: Vector<GenericParam>,
+    where_clause: Option<WhereClause>,
+    visibility: Visibility,
+    derives: Vector<Type>
+}
+
+// Class declaration for OOP support
+type ClassDecl {
+    name: string,
+    fields: Vector<Field>,
+    methods: Vector<FunctionDecl>,
+    constructors: Vector<FunctionDecl>,
+    generics: Vector<GenericParam>,
+    implements: Vector<Type>,
+    extends: Option<Type>,
+    visibility: Visibility
+}
+
+// Interface declaration
+type InterfaceDecl {
+    name: string,
+    methods: Vector<FunctionDecl>,
+    generics: Vector<GenericParam>,
+    extends: Vector<Type>,
+    visibility: Visibility
+}
+
+// Trait declaration for behavior sharing
+type TraitDecl {
+    name: string,
+    methods: Vector<FunctionDecl>,
+    associated_types: Vector<TypeDecl>,
+    generics: Vector<GenericParam>,
+    where_clause: Option<WhereClause>,
+    visibility: Visibility
+}
+
+// Implementation block
+type ImplDecl {
+    trait_type: Option<Type>,
+    target_type: Type,
+    methods: Vector<FunctionDecl>,
+    generics: Vector<GenericParam>,
+    where_clause: Option<WhereClause>
+}
+
+// Effect system for tracking side effects
+type EffectDecl {
+    name: string,
+    operations: Vector<FunctionDecl>,
+    visibility: Visibility
+}
+
+// Export declaration for module system
+type ExportDecl {
+    item: Box<Declaration>,
+    alias: Option<string>
+}
+
+// Use declaration for imports with advanced features
+type UseDecl {
+    path: Vector<string>,
+    alias: Option<string>,
+    items: Option<Vector<(string, Option<string>)>>,
+    visibility: Visibility
+}
+
+// Function parameter with advanced features
+type Parameter {
+    name: string,
+    type_annotation: Type,
+    default_value: Option<Expression>,
+    is_variadic: bool,
+    is_mutable: bool
+}
+
+// Type field with advanced features
+type Field {
+    name: string,
+    type_annotation: Type,
+    visibility: Visibility,
+    is_mutable: bool,
+    default_value: Option<Expression>
+}
+
+// Generic parameter with constraints
+type GenericParam {
+    name: string,
+    bounds: Vector<Type>,
+    default_type: Option<Type>
+}
+
+// Where clause for generic constraints
+type WhereClause {
+    constraints: Vector<(Type, Vector<Type>)>
+}
+
+// Visibility levels
+type Visibility {
+    Public,
+    Private,
+    Protected,
+    Internal,
+    Module(string)
+}
+
+// Effect types for tracking side effects
+type Effect {
+    IO,
+    Network,
+    Database,
+    GPU,
+    Web,
+    Kernel,
+    Async,
+    Unsafe,
+    Custom(string)
+}
+
+// Statement types with enhanced control flow
+type Statement {
+    Expression(Expression),
+    Block(BlockStmt),
+    If(IfStmt),
+    Match(MatchStmt),
+    Loop(LoopStmt),
+    For(ForStmt),
+    While(WhileStmt),
+    Return(ReturnStmt),
+    Yield(Expression),
+    Await(Expression),
+    Try(TryStmt),
+    Throw(Expression),
+    Break(Option<string>),
+    Continue(Option<string>),
+    Label(string, Box<Statement>)
+}
+
+type BlockStmt {
+    statements: Vector<Statement>,
+    scope_id: u64
+}
+
+type IfStmt {
+    condition: Expression,
+    then_branch: Box<Statement>,
+    else_branch: Option<Box<Statement>>
+}
+
+type MatchStmt {
+    value: Expression,
+    arms: Vector<MatchArm>
+}
+
+type MatchArm {
+    pattern: Pattern,
+    guard: Option<Expression>,
+    body: Statement
+}
+
+type Pattern {
+    Literal(Expression),
+    Variable(string),
+    Tuple(Vector<Pattern>),
+    Struct(Type, Vector<(string, Pattern)>),
+    Or(Vector<Pattern>),
+    Range(Box<Expression>, Box<Expression>),
+    Wildcard
+}
+
+type LoopStmt {
+    label: Option<string>,
+    body: Box<Statement>
+}
+
+type ForStmt {
+    item: Pattern,
+    iterator: Expression,
+    body: Box<Statement>
+}
+
+type WhileStmt {
+    condition: Expression,
+    body: Box<Statement>
+}
+
+type ReturnStmt {
+    value: Option<Expression>
+}
+
+type TryStmt {
+    body: Box<Statement>,
+    catches: Vector<CatchClause>,
+    finally: Option<Box<Statement>>
+}
+
+type CatchClause {
+    pattern: Pattern,
+    body: Box<Statement>
+}
+
+// Expression types with advanced features
+type Expression {
+    // Literals
+    IntLiteral(i64),
+    FloatLiteral(f64),
+    StringLiteral(string),
+    BoolLiteral(bool),
+    CharLiteral(char),
+    TupleLiteral(Vector<Expression>),
+    ArrayLiteral(Vector<Expression>),
+    StructLiteral(Type, Vector<(string, Expression)>),
+    
+    // Variables and assignments
+    Variable(string),
+    Assign(Box<Expression>, Box<Expression>),
+    CompoundAssign(Box<Expression>, Token, Box<Expression>),
+    
+    // Operations
+    Unary(Token, Box<Expression>),
+    Binary(Box<Expression>, Token, Box<Expression>),
+    Logical(Box<Expression>, Token, Box<Expression>),
+    
+    // Function calls and member access
+    Call(Box<Expression>, Vector<Expression>),
+    Method(Box<Expression>, string, Vector<Expression>),
+    Get(Box<Expression>, string),
+    Index(Box<Expression>, Box<Expression>),
+    
+    // Control flow
+    If(Box<Expression>, Box<Statement>, Option<Box<Statement>>),
+    Match(Box<Expression>, Vector<MatchArm>),
+    
+    // Async/await
+    Async(Box<Statement>),
+    Await(Box<Expression>),
+    
+    // Closures and functions
+    Lambda(Vector<Parameter>, Box<Statement>),
+    
+    // Error handling
+    Try(Box<Expression>),
+    Throw(Box<Expression>),
+    
+    // Type operations
+    Cast(Box<Expression>, Type),
+    TypeCheck(Box<Expression>, Type),
+    
+    // Other
+    Group(Box<Expression>),
+    Range(Box<Expression>, Box<Expression>, bool)  // inclusive flag
+}
+
+// Position tracking for error reporting
+type Span {
+    start: Position,
+    end: Position,
+    file: string
+}
+
+impl Span {
+    func new(start: Position, end: Position, file: string) -> Self {
+        Span { start, end, file }
+    }
+
+    func merge(self, other: &Span) -> Self {
+        Span {
+            start: min(self.start, other.start),
+            end: max(self.end, other.end),
+            file: self.file.clone()
+        }
+    }
+}

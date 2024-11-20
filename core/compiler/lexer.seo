@@ -1,144 +1,393 @@
-module Compiler::Lexer {
-    use Core::Types::{Token, TokenType, Position}
-    use Core::Error::{LexerError, Result}
+# Seoggi Lexer Implementation
+# Provides lexical analysis for Seoggi's indentation-based syntax
 
-    type Lexer {
-        source: string,
-        position: Position,
-        current_char: char,
-        tokens: Vector<Token>
+effect IO {
+    fn read() -> String
+    fn write(String)
+}
+
+effect Error {
+    fn raise<T>(msg: String) -> T
+}
+
+# Token types for Seoggi's syntax
+type TokenType {
+    # Keywords
+    Let | Fn | Type | Effect | Match | If | Else | For | While | Return |
+    Linear | Region | Unsafe | Actor | Atomic | Spawn | Do |
+    
+    # Literals
+    Int(Int) | Float(Float) | String(String) | Bool(Bool) |
+    
+    # Identifiers
+    Identifier(String) |
+    
+    # Operators
+    Plus | Minus | Star | Slash | Percent |      # Arithmetic
+    Eq | Neq | Lt | Gt | Leq | Geq |            # Comparison
+    And | Or | Not |                             # Logical
+    Arrow | FatArrow | Dot | Bang |             # Special
+    
+    # Delimiters
+    LParen | RParen | LBrace | RBrace |
+    LBracket | RBracket | Comma | Colon |
+    
+    # Indentation
+    Indent | Dedent | Newline |
+    
+    # End of file
+    EOF
+}
+
+# Position tracking for error reporting
+type Position {
+    line: Int
+    column: Int
+    offset: Int
+}
+
+# Token with position information
+type Token {
+    type: TokenType
+    pos: Position
+    text: String  # Original text
+}
+
+# Lexer state
+type Lexer {
+    input: String
+    pos: Position
+    indent_stack: Vec<Int>
+    current_indent: Int
+    tokens: Vec<Token>
+}
+
+# Create a new lexer instance
+fn new_lexer(input: String) -> Lexer {
+    Lexer {
+        input,
+        pos: Position { line: 1, column: 1, offset: 0 },
+        indent_stack: vec![0],  # Base indentation level
+        current_indent: 0,
+        tokens: Vec::new()
     }
+}
 
-    func new(source: string) -> Lexer {
-        Lexer {
-            source: source,
-            position: Position::new(1, 1),
-            current_char: source[0],
-            tokens: Vector::new()
-        }
-    }
+# Main lexing function
+fn lex(input: String) -> IO + Error + Result<Vec<Token>> {
+    let lexer = new_lexer(input)
+    lexer.tokenize()
+}
 
-    impl Lexer {
-        // Main tokenization function
-        func tokenize(&mut self) -> Result<Vector<Token>> {
-            while !self.is_end() {
-                match self.current_char {
-                    // Skip whitespace
-                    ' ' | '\t' | '\r' | '\n' => self.advance(),
-                    
-                    // Numbers
-                    '0'..='9' => self.tokenize_number(),
-                    
-                    // Identifiers and keywords
-                    'a'..='z' | 'A'..='Z' | '_' => self.tokenize_identifier(),
-                    
-                    // Operators
-                    '+' => self.add_token(TokenType::Plus),
-                    '-' => self.add_token(TokenType::Minus),
-                    '*' => self.add_token(TokenType::Star),
-                    '/' => self.add_token(TokenType::Slash),
-                    
-                    // Delimiters
-                    '(' => self.add_token(TokenType::LeftParen),
-                    ')' => self.add_token(TokenType::RightParen),
-                    '{' => self.add_token(TokenType::LeftBrace),
-                    '}' => self.add_token(TokenType::RightBrace),
-                    
-                    // Other tokens
-                    '=' => self.match_next('=', TokenType::EqualEqual, TokenType::Equal),
-                    '!' => self.match_next('=', TokenType::BangEqual, TokenType::Bang),
-                    '<' => self.match_next('=', TokenType::LessEqual, TokenType::Less),
-                    '>' => self.match_next('=', TokenType::GreaterEqual, TokenType::Greater),
-                    
-                    // Error for unknown characters
-                    _ => return Err(LexerError::UnexpectedChar(self.current_char, self.position))
-                }
-            }
+# Tokenize the entire input
+fn tokenize(self: &mut Lexer) -> IO + Error + Result<Vec<Token>> {
+    while !self.is_at_end() {
+        match self.next_char() {
+            ' ' | '\t' => self.handle_whitespace(),
+            '\n' => self.handle_newline(),
             
-            // Add EOF token
-            self.tokens.push(Token::new(TokenType::EOF, "", self.position));
-            Ok(self.tokens)
-        }
-
-        // Helper functions
-        func advance(&mut self) {
-            self.position.advance(self.current_char);
-            self.current_char = self.next_char();
-        }
-
-        func next_char(&self) -> char {
-            if self.position.index >= self.source.len() {
-                '\0'
-            } else {
-                self.source[self.position.index]
-            }
-        }
-
-        func add_token(&mut self, type: TokenType) {
-            self.tokens.push(Token::new(type, self.current_char.to_string(), self.position));
-            self.advance();
-        }
-
-        func is_end(&self) -> bool {
-            self.current_char == '\0'
-        }
-
-        // Token specific handlers
-        func tokenize_number(&mut self) -> Result<()> {
-            let start = self.position;
-            let mut value = String::new();
-
-            while self.current_char.is_digit() {
-                value.push(self.current_char);
-                self.advance();
-            }
-
-            // Handle decimal numbers
-            if self.current_char == '.' && self.peek().is_digit() {
-                value.push('.');
-                self.advance();
-
-                while self.current_char.is_digit() {
-                    value.push(self.current_char);
-                    self.advance();
-                }
-
-                self.tokens.push(Token::new(TokenType::Float, value, start));
-            } else {
-                self.tokens.push(Token::new(TokenType::Integer, value, start));
-            }
-
-            Ok(())
-        }
-
-        func tokenize_identifier(&mut self) -> Result<()> {
-            let start = self.position;
-            let mut value = String::new();
-
-            while self.current_char.is_alphanumeric() || self.current_char == '_' {
-                value.push(self.current_char);
-                self.advance();
-            }
-
-            // Check if it's a keyword
-            let type = match value.as_str() {
-                "func" => TokenType::Function,
-                "let" => TokenType::Let,
-                "if" => TokenType::If,
-                "else" => TokenType::Else,
-                "while" => TokenType::While,
-                "return" => TokenType::Return,
-                "true" => TokenType::True,
-                "false" => TokenType::False,
-                "module" => TokenType::Module,
-                "use" => TokenType::Use,
-                "type" => TokenType::Type,
-                "impl" => TokenType::Impl,
-                _ => TokenType::Identifier
-            };
-
-            self.tokens.push(Token::new(type, value, start));
-            Ok(())
+            # Comments
+            '#' => self.skip_comment(),
+            
+            # String literals
+            '"' => self.lex_string(),
+            '\'' => self.lex_char(),
+            
+            # Numbers
+            '0'..='9' => self.lex_number(),
+            
+            # Identifiers and keywords
+            'a'..='z' | 'A'..='Z' | '_' => self.lex_identifier(),
+            
+            # Operators
+            '+' => self.add_token(TokenType::Plus),
+            '-' => self.handle_dash(),
+            '*' => self.add_token(TokenType::Star),
+            '/' => self.add_token(TokenType::Slash),
+            '%' => self.add_token(TokenType::Percent),
+            
+            '=' => self.handle_equals(),
+            '!' => self.handle_bang(),
+            '<' => self.handle_less(),
+            '>' => self.handle_greater(),
+            
+            '&' => self.handle_and(),
+            '|' => self.handle_or(),
+            
+            # Delimiters
+            '(' => self.add_token(TokenType::LParen),
+            ')' => self.add_token(TokenType::RParen),
+            '{' => self.add_token(TokenType::LBrace),
+            '}' => self.add_token(TokenType::RBrace),
+            '[' => self.add_token(TokenType::LBracket),
+            ']' => self.add_token(TokenType::RBracket),
+            ',' => self.add_token(TokenType::Comma),
+            ':' => self.add_token(TokenType::Colon),
+            
+            # Error for unexpected characters
+            c => do raise(f"Unexpected character: {c} at {self.pos}")
         }
     }
+    
+    # Handle any remaining indentation
+    self.handle_remaining_indentation()
+    
+    # Add EOF token
+    self.add_token(TokenType::EOF)
+    
+    Ok(self.tokens)
+}
+
+# Helper functions for lexing specific token types
+
+fn handle_whitespace(self: &mut Lexer) {
+    let start_pos = self.pos
+    let mut spaces = 0
+    
+    while self.peek() == ' ' || self.peek() == '\t' {
+        if self.peek() == ' ' {
+            spaces += 1
+        } else {  # tab
+            spaces += 4  # Convert tabs to spaces
+        }
+        self.advance()
+    }
+    
+    if start_pos.column == 1 {  # Start of line
+        self.handle_indentation(spaces)
+    }
+}
+
+fn handle_indentation(self: &mut Lexer, spaces: Int) {
+    if spaces > self.current_indent {
+        # Indent
+        self.indent_stack.push(spaces)
+        self.current_indent = spaces
+        self.add_token(TokenType::Indent)
+    } else if spaces < self.current_indent {
+        # Dedent (possibly multiple levels)
+        while spaces < self.current_indent {
+            self.indent_stack.pop()
+            self.current_indent = *self.indent_stack.last().unwrap_or(&0)
+            self.add_token(TokenType::Dedent)
+        }
+        
+        if spaces != self.current_indent {
+            do raise(f"Invalid indentation at {self.pos}")
+        }
+    }
+}
+
+fn lex_string(self: &mut Lexer) -> Error + Result<()> {
+    self.advance()  # Skip opening quote
+    let start = self.pos
+    let mut value = String::new()
+    
+    while self.peek() != '"' && !self.is_at_end() {
+        if self.peek() == '\\' {
+            self.advance()
+            value.push(match self.next_char() {
+                'n' => '\n',
+                't' => '\t',
+                'r' => '\r',
+                '"' => '"',
+                '\\' => '\\',
+                c => return Err(f"Invalid escape sequence: \\{c} at {self.pos}")
+            })
+        } else {
+            value.push(self.next_char())
+        }
+    }
+    
+    if self.is_at_end() {
+        return Err(f"Unterminated string starting at {start}")
+    }
+    
+    self.advance()  # Skip closing quote
+    self.add_token(TokenType::String(value))
+    Ok(())
+}
+
+fn lex_number(self: &mut Lexer) -> Result<()> {
+    let start = self.pos
+    let mut value = String::new()
+    let mut is_float = false
+    
+    while self.peek().is_digit() {
+        value.push(self.next_char())
+    }
+    
+    # Handle decimal point
+    if self.peek() == '.' && self.peek_next().is_digit() {
+        is_float = true
+        value.push(self.next_char())  # Add decimal point
+        
+        while self.peek().is_digit() {
+            value.push(self.next_char())
+        }
+    }
+    
+    # Handle exponent
+    if self.peek().to_lowercase() == 'e' {
+        is_float = true
+        value.push(self.next_char())
+        
+        if self.peek() == '+' || self.peek() == '-' {
+            value.push(self.next_char())
+        }
+        
+        if !self.peek().is_digit() {
+            return Err(f"Invalid number format at {self.pos}")
+        }
+        
+        while self.peek().is_digit() {
+            value.push(self.next_char())
+        }
+    }
+    
+    if is_float {
+        self.add_token(TokenType::Float(value.parse().unwrap()))
+    } else {
+        self.add_token(TokenType::Int(value.parse().unwrap()))
+    }
+    
+    Ok(())
+}
+
+fn lex_identifier(self: &mut Lexer) {
+    let start = self.pos
+    let mut name = String::new()
+    
+    while self.peek().is_alphanumeric() || self.peek() == '_' {
+        name.push(self.next_char())
+    }
+    
+    # Check for keywords
+    let token_type = match name.as_str() {
+        "let" => TokenType::Let,
+        "fn" => TokenType::Fn,
+        "type" => TokenType::Type,
+        "effect" => TokenType::Effect,
+        "match" => TokenType::Match,
+        "if" => TokenType::If,
+        "else" => TokenType::Else,
+        "for" => TokenType::For,
+        "while" => TokenType::While,
+        "return" => TokenType::Return,
+        "linear" => TokenType::Linear,
+        "region" => TokenType::Region,
+        "unsafe" => TokenType::Unsafe,
+        "actor" => TokenType::Actor,
+        "atomic" => TokenType::Atomic,
+        "spawn" => TokenType::Spawn,
+        "do" => TokenType::Do,
+        "true" => TokenType::Bool(true),
+        "false" => TokenType::Bool(false),
+        _ => TokenType::Identifier(name)
+    }
+    
+    self.add_token(token_type)
+}
+
+# Utility functions
+
+fn is_at_end(self: &Lexer) -> Bool {
+    self.pos.offset >= self.input.len()
+}
+
+fn peek(self: &Lexer) -> Char {
+    if self.is_at_end() {
+        '\0'
+    } else {
+        self.input[self.pos.offset]
+    }
+}
+
+fn peek_next(self: &Lexer) -> Char {
+    if self.pos.offset + 1 >= self.input.len() {
+        '\0'
+    } else {
+        self.input[self.pos.offset + 1]
+    }
+}
+
+fn advance(self: &mut Lexer) -> Char {
+    let c = self.peek()
+    self.pos.offset += 1
+    
+    if c == '\n' {
+        self.pos.line += 1
+        self.pos.column = 1
+    } else {
+        self.pos.column += 1
+    }
+    
+    c
+}
+
+fn add_token(self: &mut Lexer, type: TokenType) {
+    let text = self.input[self.token_start..self.pos.offset]
+    self.tokens.push(Token {
+        type,
+        pos: self.token_start_pos,
+        text
+    })
+}
+
+# Error handling
+
+fn error(pos: Position, message: String) -> Error {
+    Error {
+        pos,
+        message,
+        kind: ErrorKind::Lexical
+    }
+}
+
+# Test cases
+
+#[test]
+fn test_basic_lexing() {
+    let input = "
+    fn main() {
+        let x = 42
+        print(x)
+    }
+    "
+    
+    let tokens = lex(input).unwrap()
+    assert_eq!(tokens[0].type, TokenType::Fn)
+    assert_eq!(tokens[1].type, TokenType::Identifier("main"))
+    assert_eq!(tokens[2].type, TokenType::LParen)
+    assert_eq!(tokens[3].type, TokenType::RParen)
+    assert_eq!(tokens[4].type, TokenType::LBrace)
+    assert_eq!(tokens[5].type, TokenType::Indent)
+    assert_eq!(tokens[6].type, TokenType::Let)
+    assert_eq!(tokens[7].type, TokenType::Identifier("x"))
+    assert_eq!(tokens[8].type, TokenType::Eq)
+    assert_eq!(tokens[9].type, TokenType::Int(42))
+}
+
+#[test]
+fn test_string_lexing() {
+    let input = r#"let msg = "Hello, \"world\"!""#
+    let tokens = lex(input).unwrap()
+    assert_eq!(tokens[3].type, TokenType::String("Hello, \"world\"!"))
+}
+
+#[test]
+fn test_indentation() {
+    let input = "
+    if true {
+        print(1)
+            print(2)
+        print(3)
+    }
+    "
+    
+    let tokens = lex(input).unwrap()
+    let indents = tokens.iter()
+        .filter(|t| matches!(t.type, TokenType::Indent | TokenType::Dedent))
+        .count()
+    assert_eq!(indents, 4)  # 2 indents + 2 dedents
 }
