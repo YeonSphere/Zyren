@@ -1,0 +1,303 @@
+# Seoggi Browser Engine
+# Implements core browser functionality
+
+# DOM Node Types
+type NodeType {
+    ELEMENT,
+    TEXT,
+    COMMENT,
+    DOCUMENT
+}
+
+# DOM Node
+type Node {
+    type: NodeType
+    tag_name: String?
+    attributes: Map[String, String]
+    children: List[Node]
+    parent: Node?
+    text_content: String?
+}
+
+# CSS Rule
+type CSSRule {
+    selector: String
+    properties: Map[String, String]
+    specificity: int
+}
+
+# Render Object
+type RenderObject {
+    node: Node
+    style: Map[String, String]
+    layout: Layout
+    children: List[RenderObject]
+}
+
+# Layout Information
+type Layout {
+    x: float
+    y: float
+    width: float
+    height: float
+    margin: Box
+    padding: Box
+    border: Box
+}
+
+# Box Model
+type Box {
+    top: float
+    right: float
+    bottom: float
+    left: float
+}
+
+# Browser Engine Functions
+fn parse_html(html: String) -> Node {
+    # Create document node
+    doc = Node {
+        type: NodeType.DOCUMENT,
+        tag_name: null,
+        attributes: {},
+        children: [],
+        parent: null,
+        text_content: null
+    }
+    
+    # Parse HTML and build DOM tree
+    current_node = doc
+    tokens = tokenize_html(html)
+    
+    for token in tokens {
+        if is_opening_tag(token) {
+            # Create new element node
+            node = create_element_node(token)
+            node.parent = current_node
+            current_node.children.append(node)
+            current_node = node
+        } else if is_closing_tag(token) {
+            # Move back to parent
+            current_node = current_node.parent
+        } else if is_text(token) {
+            # Create text node
+            node = create_text_node(token)
+            node.parent = current_node
+            current_node.children.append(node)
+        }
+    }
+    
+    return doc
+}
+
+fn parse_css(css: String) -> List[CSSRule] {
+    rules = []
+    tokens = tokenize_css(css)
+    
+    current_rule = null
+    for token in tokens {
+        if is_selector(token) {
+            # Start new rule
+            current_rule = CSSRule {
+                selector: token,
+                properties: {},
+                specificity: calculate_specificity(token)
+            }
+        } else if is_property(token) {
+            # Add property to current rule
+            name, value = parse_property(token)
+            current_rule.properties[name] = value
+        } else if is_rule_end(token) {
+            # Add completed rule to list
+            rules.append(current_rule)
+            current_rule = null
+        }
+    }
+    
+    return rules
+}
+
+fn create_render_tree(doc: Node, style_rules: List[CSSRule]) -> RenderObject {
+    # Create render object for document
+    root = RenderObject {
+        node: doc,
+        style: {},
+        layout: create_default_layout(),
+        children: []
+    }
+    
+    # Build render tree recursively
+    build_render_tree(root, style_rules)
+    
+    return root
+}
+
+fn build_render_tree(render_obj: RenderObject, style_rules: List[CSSRule]) {
+    # Apply styles
+    apply_styles(render_obj, style_rules)
+    
+    # Process children
+    for child in render_obj.node.children {
+        # Skip non-visual nodes
+        if should_create_render_object(child) {
+            child_render = RenderObject {
+                node: child,
+                style: {},
+                layout: create_default_layout(),
+                children: []
+            }
+            render_obj.children.append(child_render)
+            build_render_tree(child_render, style_rules)
+        }
+    }
+}
+
+fn layout(render_obj: RenderObject, container_width: float) {
+    # Calculate dimensions
+    calculate_width(render_obj, container_width)
+    calculate_position(render_obj)
+    
+    # Layout children
+    for child in render_obj.children {
+        layout(child, render_obj.layout.width)
+    }
+    
+    # Calculate height
+    calculate_height(render_obj)
+}
+
+fn paint(render_obj: RenderObject, context: RenderContext) {
+    # Draw background
+    if has_background(render_obj) {
+        draw_background(context, render_obj)
+    }
+    
+    # Draw borders
+    if has_borders(render_obj) {
+        draw_borders(context, render_obj)
+    }
+    
+    # Draw content
+    draw_content(context, render_obj)
+    
+    # Paint children
+    for child in render_obj.children {
+        paint(child, context)
+    }
+}
+
+# Helper Functions
+fn create_element_node(token: String) -> Node {
+    tag_name, attributes = parse_tag(token)
+    return Node {
+        type: NodeType.ELEMENT,
+        tag_name: tag_name,
+        attributes: attributes,
+        children: [],
+        parent: null,
+        text_content: null
+    }
+}
+
+fn create_text_node(token: String) -> Node {
+    return Node {
+        type: NodeType.TEXT,
+        tag_name: null,
+        attributes: {},
+        children: [],
+        parent: null,
+        text_content: token
+    }
+}
+
+fn create_default_layout() -> Layout {
+    return Layout {
+        x: 0.0,
+        y: 0.0,
+        width: 0.0,
+        height: 0.0,
+        margin: Box { top: 0.0, right: 0.0, bottom: 0.0, left: 0.0 },
+        padding: Box { top: 0.0, right: 0.0, bottom: 0.0, left: 0.0 },
+        border: Box { top: 0.0, right: 0.0, bottom: 0.0, left: 0.0 }
+    }
+}
+
+fn calculate_specificity(selector: String) -> int {
+    # Calculate CSS selector specificity
+    id_count = count_occurrences(selector, "#")
+    class_count = count_occurrences(selector, ".")
+    element_count = count_tag_names(selector)
+    
+    return id_count * 100 + class_count * 10 + element_count
+}
+
+fn apply_styles(render_obj: RenderObject, rules: List[CSSRule]) {
+    matching_rules = []
+    
+    # Find matching rules
+    for rule in rules {
+        if selector_matches(rule.selector, render_obj.node) {
+            matching_rules.append(rule)
+        }
+    }
+    
+    # Sort by specificity
+    matching_rules.sort_by_key(rule => rule.specificity)
+    
+    # Apply properties
+    for rule in matching_rules {
+        for name, value in rule.properties {
+            render_obj.style[name] = value
+        }
+    }
+}
+
+fn calculate_width(render_obj: RenderObject, container_width: float) {
+    style = render_obj.style
+    layout = render_obj.layout
+    
+    # Get width value
+    if "width" in style {
+        layout.width = parse_length(style["width"], container_width)
+    } else {
+        layout.width = container_width
+    }
+    
+    # Add padding and border
+    layout.width += layout.padding.left + layout.padding.right
+    layout.width += layout.border.left + layout.border.right
+}
+
+fn calculate_height(render_obj: RenderObject) {
+    style = render_obj.style
+    layout = render_obj.layout
+    
+    # Get height value
+    if "height" in style {
+        layout.height = parse_length(style["height"], layout.width)
+    } else {
+        # Calculate height based on children
+        layout.height = calculate_content_height(render_obj)
+    }
+    
+    # Add padding and border
+    layout.height += layout.padding.top + layout.padding.bottom
+    layout.height += layout.border.top + layout.border.bottom
+}
+
+fn calculate_position(render_obj: RenderObject) {
+    style = render_obj.style
+    layout = render_obj.layout
+    
+    # Handle positioning
+    position = style.get("position", "static")
+    
+    if position == "relative" {
+        layout.x += parse_length(style.get("left", "0"), layout.width)
+        layout.y += parse_length(style.get("top", "0"), layout.height)
+    } else if position == "absolute" {
+        parent = find_positioned_parent(render_obj)
+        layout.x = parse_length(style.get("left", "0"), parent.layout.width)
+        layout.y = parse_length(style.get("top", "0"), parent.layout.height)
+    }
+}

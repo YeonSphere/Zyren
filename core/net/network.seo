@@ -1,0 +1,324 @@
+# Seoggi Network Stack
+# Implements networking protocols and socket operations
+
+# Socket Types
+type SocketType {
+    TCP,
+    UDP,
+    RAW
+}
+
+# Socket
+type Socket {
+    type: SocketType
+    local_addr: String
+    local_port: int
+    remote_addr: String?
+    remote_port: int?
+    state: SocketState
+    send_buffer: Buffer
+    recv_buffer: Buffer
+}
+
+# Socket State
+type SocketState {
+    CLOSED,
+    LISTEN,
+    SYN_SENT,
+    SYN_RECEIVED,
+    ESTABLISHED,
+    FIN_WAIT_1,
+    FIN_WAIT_2,
+    CLOSE_WAIT,
+    CLOSING,
+    LAST_ACK,
+    TIME_WAIT
+}
+
+# Network Buffer
+type Buffer {
+    data: List[byte]
+    size: int
+    capacity: int
+    read_pos: int
+    write_pos: int
+}
+
+# Network Interface
+type NetworkInterface {
+    name: String
+    mac_address: String
+    ip_address: String
+    netmask: String
+    gateway: String
+    mtu: int
+    flags: int
+}
+
+# Socket Functions
+fn create_socket(type: SocketType) -> Socket {
+    return Socket {
+        type: type,
+        local_addr: "0.0.0.0",
+        local_port: 0,
+        remote_addr: null,
+        remote_port: null,
+        state: SocketState.CLOSED,
+        send_buffer: create_buffer(DEFAULT_BUFFER_SIZE),
+        recv_buffer: create_buffer(DEFAULT_BUFFER_SIZE)
+    }
+}
+
+fn bind(socket: Socket, addr: String, port: int) {
+    if socket.state != SocketState.CLOSED {
+        error("Socket already bound")
+    }
+    
+    # Check if address and port are available
+    if !is_address_available(addr, port) {
+        error("Address already in use")
+    }
+    
+    socket.local_addr = addr
+    socket.local_port = port
+}
+
+fn listen(socket: Socket, backlog: int) {
+    if socket.type != SocketType.TCP {
+        error("Only TCP sockets can listen")
+    }
+    
+    if socket.state != SocketState.CLOSED {
+        error("Socket already in use")
+    }
+    
+    # Initialize listen queue
+    init_listen_queue(socket, backlog)
+    
+    socket.state = SocketState.LISTEN
+}
+
+fn accept(socket: Socket) -> Socket {
+    if socket.type != SocketType.TCP {
+        error("Only TCP sockets can accept")
+    }
+    
+    if socket.state != SocketState.LISTEN {
+        error("Socket not listening")
+    }
+    
+    # Wait for incoming connection
+    client = wait_for_connection(socket)
+    if client == null {
+        error("Accept failed")
+    }
+    
+    return client
+}
+
+fn connect(socket: Socket, addr: String, port: int) {
+    if socket.state != SocketState.CLOSED {
+        error("Socket already connected")
+    }
+    
+    socket.remote_addr = addr
+    socket.remote_port = port
+    
+    if socket.type == SocketType.TCP {
+        # Perform TCP handshake
+        socket.state = SocketState.SYN_SENT
+        if !perform_tcp_handshake(socket) {
+            socket.state = SocketState.CLOSED
+            error("Connection failed")
+        }
+        socket.state = SocketState.ESTABLISHED
+    } else {
+        # For UDP, just set up the remote endpoint
+        socket.state = SocketState.ESTABLISHED
+    }
+}
+
+fn send(socket: Socket, data: List[byte], flags: int) -> int {
+    if socket.state != SocketState.ESTABLISHED {
+        error("Socket not connected")
+    }
+    
+    if socket.type == SocketType.TCP {
+        return send_tcp(socket, data, flags)
+    } else {
+        return send_udp(socket, data, flags)
+    }
+}
+
+fn recv(socket: Socket, size: int, flags: int) -> List[byte] {
+    if socket.state != SocketState.ESTABLISHED {
+        error("Socket not connected")
+    }
+    
+    if socket.type == SocketType.TCP {
+        return recv_tcp(socket, size, flags)
+    } else {
+        return recv_udp(socket, size, flags)
+    }
+}
+
+fn close(socket: Socket) {
+    if socket.state == SocketState.CLOSED {
+        return
+    }
+    
+    if socket.type == SocketType.TCP {
+        # Perform TCP shutdown
+        if socket.state == SocketState.ESTABLISHED {
+            send_fin(socket)
+            socket.state = SocketState.FIN_WAIT_1
+            wait_for_fin_ack(socket)
+        }
+    }
+    
+    # Clean up resources
+    cleanup_socket(socket)
+    socket.state = SocketState.CLOSED
+}
+
+# TCP Protocol Functions
+fn send_tcp(socket: Socket, data: List[byte], flags: int) -> int {
+    # Split data into segments
+    segments = create_tcp_segments(data, socket.remote_addr, socket.remote_port)
+    
+    bytes_sent = 0
+    for segment in segments {
+        # Add TCP header
+        packet = create_tcp_packet(segment, flags)
+        
+        # Send packet
+        if send_packet(packet) {
+            bytes_sent += segment.length
+        } else {
+            break
+        }
+        
+        # Wait for acknowledgment
+        if !wait_for_ack(socket, segment.seq_num) {
+            break
+        }
+    }
+    
+    return bytes_sent
+}
+
+fn recv_tcp(socket: Socket, size: int, flags: int) -> List[byte] {
+    data = []
+    bytes_received = 0
+    
+    while bytes_received < size {
+        # Receive TCP packet
+        packet = receive_packet()
+        if packet == null {
+            break
+        }
+        
+        # Verify packet
+        if !verify_tcp_packet(packet) {
+            continue
+        }
+        
+        # Extract data
+        segment_data = extract_tcp_data(packet)
+        data.extend(segment_data)
+        bytes_received += segment_data.length
+        
+        # Send acknowledgment
+        send_ack(socket, packet.seq_num)
+    }
+    
+    return data
+}
+
+# UDP Protocol Functions
+fn send_udp(socket: Socket, data: List[byte], flags: int) -> int {
+    # Create UDP packet
+    packet = create_udp_packet(data, socket.remote_addr, socket.remote_port)
+    
+    # Send packet
+    if send_packet(packet) {
+        return data.length
+    }
+    
+    return 0
+}
+
+fn recv_udp(socket: Socket, size: int, flags: int) -> List[byte] {
+    # Receive UDP packet
+    packet = receive_packet()
+    if packet == null {
+        return []
+    }
+    
+    # Verify packet
+    if !verify_udp_packet(packet) {
+        return []
+    }
+    
+    # Extract data
+    return extract_udp_data(packet)
+}
+
+# Network Interface Functions
+fn get_interfaces() -> List[NetworkInterface] {
+    return enumerate_network_interfaces()
+}
+
+fn configure_interface(interface: NetworkInterface) {
+    # Configure network interface
+    set_interface_address(interface.name, interface.ip_address)
+    set_interface_netmask(interface.name, interface.netmask)
+    set_interface_gateway(interface.name, interface.gateway)
+    set_interface_mtu(interface.name, interface.mtu)
+    set_interface_flags(interface.name, interface.flags)
+}
+
+# Helper Functions
+fn create_buffer(capacity: int) -> Buffer {
+    return Buffer {
+        data: [],
+        size: 0,
+        capacity: capacity,
+        read_pos: 0,
+        write_pos: 0
+    }
+}
+
+fn create_tcp_packet(segment: TCPSegment, flags: int) -> Packet {
+    # Create TCP header
+    header = TCPHeader {
+        source_port: segment.source_port,
+        dest_port: segment.dest_port,
+        seq_num: segment.seq_num,
+        ack_num: segment.ack_num,
+        flags: flags,
+        window: calculate_window_size(),
+        checksum: 0,
+        urgent_ptr: 0
+    }
+    
+    # Calculate checksum
+    header.checksum = calculate_tcp_checksum(header, segment.data)
+    
+    return create_packet(header, segment.data)
+}
+
+fn create_udp_packet(data: List[byte], dest_addr: String, dest_port: int) -> Packet {
+    # Create UDP header
+    header = UDPHeader {
+        source_port: socket.local_port,
+        dest_port: dest_port,
+        length: data.length + UDP_HEADER_SIZE,
+        checksum: 0
+    }
+    
+    # Calculate checksum
+    header.checksum = calculate_udp_checksum(header, data)
+    
+    return create_packet(header, data)
+}

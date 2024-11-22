@@ -1,0 +1,265 @@
+# Seoggi Device Driver System
+# Implements device management and driver interface
+
+# Device Types
+type DeviceType {
+    BLOCK,      # Block devices (e.g., disks)
+    CHAR,       # Character devices (e.g., terminals)
+    NETWORK,    # Network interfaces
+    GPU,        # Graphics processors
+    SOUND,      # Sound cards
+    INPUT,      # Input devices (keyboard, mouse)
+    USB,        # USB devices
+    PCI         # PCI devices
+}
+
+# Device Information
+type Device {
+    id: String
+    type: DeviceType
+    name: String
+    driver: Driver
+    bus: String?
+    vendor_id: String?
+    device_id: String?
+    status: DeviceStatus
+    properties: Map[String, String]
+}
+
+# Device Status
+type DeviceStatus {
+    UNKNOWN,
+    INITIALIZED,
+    RUNNING,
+    SUSPENDED,
+    ERROR
+}
+
+# Driver Interface
+type Driver {
+    name: String
+    version: String
+    author: String
+    description: String
+    supported_devices: List[String]
+    init_fn: fn(Device) -> bool
+    cleanup_fn: fn(Device)
+    open_fn: fn(Device) -> int
+    close_fn: fn(Device)
+    read_fn: fn(Device, int) -> List[byte]
+    write_fn: fn(Device, List[byte]) -> int
+    ioctl_fn: fn(Device, int, any) -> int
+    interrupt_handler: fn(Device, int)
+}
+
+# Device Manager Functions
+fn register_device(device: Device) {
+    # Check if device already registered
+    if device_exists(device.id) {
+        error("Device already registered")
+    }
+    
+    # Initialize device
+    if !init_device(device) {
+        error("Device initialization failed")
+    }
+    
+    # Add to device registry
+    add_to_device_registry(device)
+}
+
+fn unregister_device(device_id: String) {
+    device = get_device(device_id)
+    if device == null {
+        error("Device not found")
+    }
+    
+    # Cleanup device
+    cleanup_device(device)
+    
+    # Remove from registry
+    remove_from_device_registry(device_id)
+}
+
+fn open_device(device_id: String) -> int {
+    device = get_device(device_id)
+    if device == null {
+        error("Device not found")
+    }
+    
+    # Call driver's open function
+    fd = device.driver.open_fn(device)
+    if fd < 0 {
+        error("Failed to open device")
+    }
+    
+    return fd
+}
+
+fn close_device(device_id: String) {
+    device = get_device(device_id)
+    if device == null {
+        error("Device not found")
+    }
+    
+    # Call driver's close function
+    device.driver.close_fn(device)
+}
+
+fn read_device(device_id: String, size: int) -> List[byte] {
+    device = get_device(device_id)
+    if device == null {
+        error("Device not found")
+    }
+    
+    # Call driver's read function
+    return device.driver.read_fn(device, size)
+}
+
+fn write_device(device_id: String, data: List[byte]) -> int {
+    device = get_device(device_id)
+    if device == null {
+        error("Device not found")
+    }
+    
+    # Call driver's write function
+    return device.driver.write_fn(device, data)
+}
+
+fn ioctl_device(device_id: String, command: int, arg: any) -> int {
+    device = get_device(device_id)
+    if device == null {
+        error("Device not found")
+    }
+    
+    # Call driver's ioctl function
+    return device.driver.ioctl_fn(device, command, arg)
+}
+
+# Device Management Functions
+fn init_device(device: Device) -> bool {
+    # Initialize device using driver
+    if device.driver.init_fn(device) {
+        device.status = DeviceStatus.INITIALIZED
+        return true
+    }
+    
+    device.status = DeviceStatus.ERROR
+    return false
+}
+
+fn cleanup_device(device: Device) {
+    # Clean up device using driver
+    device.driver.cleanup_fn(device)
+    device.status = DeviceStatus.UNKNOWN
+}
+
+fn handle_device_interrupt(device: Device, irq: int) {
+    # Call driver's interrupt handler
+    device.driver.interrupt_handler(device, irq)
+}
+
+# Device Discovery Functions
+fn discover_pci_devices() -> List[Device] {
+    devices = []
+    
+    # Scan PCI bus
+    pci_devices = scan_pci_bus()
+    
+    for pci_dev in pci_devices {
+        # Create device object
+        device = create_pci_device(pci_dev)
+        
+        # Find appropriate driver
+        driver = find_driver(device)
+        if driver != null {
+            device.driver = driver
+            devices.append(device)
+        }
+    }
+    
+    return devices
+}
+
+fn discover_usb_devices() -> List[Device] {
+    devices = []
+    
+    # Scan USB bus
+    usb_devices = scan_usb_bus()
+    
+    for usb_dev in usb_devices {
+        # Create device object
+        device = create_usb_device(usb_dev)
+        
+        # Find appropriate driver
+        driver = find_driver(device)
+        if driver != null {
+            device.driver = driver
+            devices.append(device)
+        }
+    }
+    
+    return devices
+}
+
+# Driver Management Functions
+fn register_driver(driver: Driver) {
+    # Add driver to registry
+    add_to_driver_registry(driver)
+    
+    # Check for matching devices
+    devices = find_matching_devices(driver)
+    
+    # Initialize matching devices
+    for device in devices {
+        device.driver = driver
+        init_device(device)
+    }
+}
+
+fn unregister_driver(driver_name: String) {
+    # Find all devices using this driver
+    devices = find_devices_by_driver(driver_name)
+    
+    # Cleanup devices
+    for device in devices {
+        cleanup_device(device)
+    }
+    
+    # Remove from registry
+    remove_from_driver_registry(driver_name)
+}
+
+# Helper Functions
+fn find_driver(device: Device) -> Driver? {
+    # Find compatible driver in registry
+    return find_compatible_driver(device)
+}
+
+fn create_pci_device(pci_dev: PCIDevice) -> Device {
+    return Device {
+        id: generate_device_id(),
+        type: DeviceType.PCI,
+        name: pci_dev.name,
+        driver: null,
+        bus: "pci",
+        vendor_id: pci_dev.vendor_id,
+        device_id: pci_dev.device_id,
+        status: DeviceStatus.UNKNOWN,
+        properties: pci_dev.properties
+    }
+}
+
+fn create_usb_device(usb_dev: USBDevice) -> Device {
+    return Device {
+        id: generate_device_id(),
+        type: DeviceType.USB,
+        name: usb_dev.name,
+        driver: null,
+        bus: "usb",
+        vendor_id: usb_dev.vendor_id,
+        device_id: usb_dev.device_id,
+        status: DeviceStatus.UNKNOWN,
+        properties: usb_dev.properties
+    }
+}

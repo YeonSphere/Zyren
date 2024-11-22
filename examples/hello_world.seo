@@ -1,1 +1,125 @@
-write("Hello world")
+# Seoggi Hello World Example
+# Demonstrates core language features
+
+# Import system modules
+import core.io.console
+import core.os.process
+import core.sync.mutex
+import core.net.http
+
+# Custom type definitions
+type Message {
+    content: String
+    timestamp: DateTime
+    priority: int
+}
+
+# Trait definition
+trait Printable {
+    fn to_string() -> String
+    fn print()
+}
+
+# Implement trait for Message
+impl Printable for Message {
+    fn to_string() -> String {
+        return "[${this.timestamp}] ${this.content} (Priority: ${this.priority})"
+    }
+    
+    fn print() {
+        console.write(this.to_string())
+    }
+}
+
+# Effect type for IO operations
+effect IO {
+    fn read() -> String
+    fn write(msg: String)
+}
+
+# Async function example
+async fn fetch_remote_greeting() -> Result[String, Error] {
+    client = http.Client()
+    response = await client.get("https://api.example.com/greeting")
+    match response {
+        Ok(data) => return Ok(data.body)
+        Err(e) => return Err(e)
+    }
+}
+
+# Pattern matching example
+fn get_greeting_priority(time: DateTime) -> int {
+    match time.hour {
+        0..5 => 3,  # Late night
+        6..11 => 1, # Morning
+        12..17 => 2, # Afternoon
+        18..23 => 1, # Evening
+        _ => 0
+    }
+}
+
+# Generic function with constraints
+fn create_message[T: ToString](content: T, priority: int) -> Message {
+    return Message {
+        content: content.to_string(),
+        timestamp: DateTime.now(),
+        priority: priority
+    }
+}
+
+# Mutex for thread safety
+mutex = Mutex.new()
+
+# Main function with error handling
+fn main() -> Result[(), Error] {
+    # Create and print local message
+    local_msg = create_message("Hello from Seoggi!", 1)
+    local_msg.print()
+    
+    # Demonstrate async/await with error handling
+    remote_greeting = match await fetch_remote_greeting() {
+        Ok(greeting) => greeting,
+        Err(e) => {
+            console.write("Failed to fetch remote greeting: ${e}")
+            "Hello (fallback)"
+        }
+    }
+    
+    # Thread-safe operation
+    mutex.lock()
+    try {
+        remote_msg = create_message(remote_greeting, get_greeting_priority(DateTime.now()))
+        remote_msg.print()
+    } finally {
+        mutex.unlock()
+    }
+    
+    # Demonstrate effect handling
+    handle IO {
+        fn read() -> String {
+            return console.read_line()
+        }
+        fn write(msg: String) {
+            console.write_line(msg)
+        }
+    } in {
+        write("Enter your name: ")
+        name = read()
+        write("Hello, ${name}!")
+    }
+    
+    # Process management example
+    child_process = process.spawn("echo", ["Hello from child process"])
+    status = child_process.wait()
+    
+    match status {
+        0 => Ok(()),
+        _ => Err(Error("Child process failed"))
+    }
+}
+
+# Run the program
+main() catch |e| {
+    console.write("Error: ${e}")
+    process.exit(1)
+}
