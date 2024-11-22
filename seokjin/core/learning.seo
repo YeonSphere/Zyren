@@ -1,0 +1,138 @@
+# Learning Module
+# Implements efficient, low-resource learning capabilities
+
+# Learning module with static memory allocation
+type LearningModule {
+    # Fixed-size knowledge buffer
+    knowledge: StaticVec[Fact, 1000],
+    # Compile-time pattern matching rules
+    rules: [Rule; 50],
+    # Memory pool for temporary allocations
+    scratch_space: [byte; 4096],
+    # Current position in scratch space
+    scratch_ptr: usize
+}
+
+# Zero-sized fact type for compile-time optimizations
+type Fact {
+    pattern: &'static str,
+    response: &'static str,
+    confidence: f32
+}
+
+# Compile-time rule generation
+const fn generate_rules() -> [Rule; 50] {
+    compile_time_rules!()
+}
+
+impl LearningModule {
+    # Zero-cost initialization
+    fn new() -> Self {
+        Self {
+            knowledge: StaticVec::new(),
+            rules: generate_rules(),
+            scratch_space: [0; 4096],
+            scratch_ptr: 0
+        }
+    }
+
+    # Learn from text with zero allocations
+    fn learn(text: &str, allocator: &mut StackAllocator) -> Result[(), LearningError] {
+        # Direct memory access for pattern matching
+        let patterns = this.extract_patterns(text)
+        
+        # Use scratch space for temporary storage
+        let start_ptr = this.scratch_ptr
+        for pattern in patterns {
+            if this.scratch_ptr + pattern.len() > this.scratch_space.len() {
+                # Reset scratch space if full
+                this.scratch_ptr = 0
+            }
+            
+            # Zero-copy pattern storage
+            let storage = &mut this.scratch_space[this.scratch_ptr..this.scratch_ptr + pattern.len()]
+            storage.copy_from_slice(pattern.as_bytes())
+            this.scratch_ptr += pattern.len()
+            
+            # Add to knowledge base if space available
+            if !this.knowledge.is_full() {
+                this.knowledge.push(Fact {
+                    pattern: unsafe { str::from_utf8_unchecked(storage) },
+                    response: this.generate_response(pattern),
+                    confidence: this.calculate_confidence(pattern)
+                })
+            }
+        }
+        
+        Ok(())
+    }
+
+    # Web learning with controlled memory usage
+    fn learn_from_url(url: &str) -> Result[(), LearningError] {
+        # Stack-allocated HTTP client
+        let client = HttpClient::new()
+        
+        # Stream response to avoid loading entire page
+        let mut stream = client.get(url).stream()?
+        
+        # Process chunks with fixed buffer
+        let mut buffer = [0u8; 4096]
+        while let Some(chunk) = stream.next_chunk(&mut buffer)? {
+            this.learn(unsafe { str::from_utf8_unchecked(chunk) }, &mut this.scratch_space)?
+        }
+        
+        Ok(())
+    }
+
+    # Zero-cost pattern extraction
+    fn extract_patterns(text: &str) -> impl Iterator[&str] {
+        # Compile-time regex matching
+        static PATTERN_REGEX: Regex = regex!(r"[^.!?]+[.!?]")
+        
+        # Zero-allocation iterator
+        PATTERN_REGEX.find_iter(text).map(|m| m.as_str())
+    }
+
+    # Efficient response generation
+    fn generate_response(pattern: &str) -> &'static str {
+        # Use compile-time rules for matching
+        for rule in this.rules {
+            if rule.matches(pattern) {
+                return rule.response
+            }
+        }
+        
+        # Default response with no allocation
+        "I understand."
+    }
+
+    # Fast confidence calculation
+    fn calculate_confidence(pattern: &str) -> f32 {
+        # Use SIMD operations where available
+        #[cfg(target_feature = "sse2")]
+        {
+            this.calculate_confidence_simd(pattern)
+        }
+        #[cfg(not(target_feature = "sse2"))]
+        {
+            this.calculate_confidence_scalar(pattern)
+        }
+    }
+}
+
+# Error type with static messages
+type LearningError {
+    MemoryExhausted,
+    NetworkError,
+    InvalidPattern
+}
+
+impl Error for LearningError {
+    fn description(&self) -> &'static str {
+        match self {
+            LearningError::MemoryExhausted => "Learning memory exhausted",
+            LearningError::NetworkError => "Network error during learning",
+            LearningError::InvalidPattern => "Invalid pattern detected"
+        }
+    }
+}
