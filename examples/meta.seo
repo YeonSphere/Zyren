@@ -1,0 +1,154 @@
+# Meta-programming Example
+# Shows Seoggi's compile-time capabilities
+
+# Compile-time type construction
+macro gen_tuple[Ts...] {
+    struct Tuple[Ts...] {
+        $(field_${index}: ${type},)*
+    }
+    
+    impl[Ts...] Tuple[Ts...] {
+        fn new($(value_${index}: ${type}),*) -> Self {
+            Self {
+                $(field_${index}: value_${index},)*
+            }
+        }
+    }
+}
+
+# Generate tuples at compile time
+gen_tuple![i32, String, bool]
+
+# Type-level computation
+type Factorial[N] = {
+    if N == 0 { 1 }
+    else { N * Factorial[N-1] }
+}
+
+# Compile-time string manipulation
+const fn str_repeat[const N: usize](s: &str) -> [char; N] {
+    let mut result = [' '; N]
+    let mut i = 0
+    while i < N {
+        result[i] = s[i % s.len()]
+        i += 1
+    }
+    result
+}
+
+# Static reflection capabilities
+reflect! {
+    struct Person {
+        name: String,
+        age: i32
+    }
+    
+    # Generate getters and setters
+    impl Person {
+        $(
+            fn get_${field}(&self) -> &${type} {
+                &self.${field}
+            }
+            
+            fn set_${field}(&mut self, value: ${type}) {
+                self.${field} = value
+            }
+        )*
+    }
+}
+
+# Compile-time code generation
+macro generate_enum {
+    ($name:ident, $($variant:ident = $value:expr),*) => {
+        enum $name {
+            $($variant = $value),*
+        }
+        
+        impl $name {
+            fn to_string(&self) -> &'static str {
+                match self {
+                    $($name::$variant => stringify!($variant)),*
+                }
+            }
+        }
+    }
+}
+
+# Use the macro
+generate_enum!(Status, OK = 200, NotFound = 404, Error = 500)
+
+# Type-safe SQL query builder at compile time
+macro sql {
+    (SELECT $($field:ident),* FROM $table:ident WHERE $cond:expr) => {
+        Query {
+            fields: &[$(stringify!($field)),*],
+            table: stringify!($table),
+            condition: stringify!($cond)
+        }
+    }
+}
+
+# Zero-cost serialization
+#[derive(Serialize)]
+struct Data {
+    field1: i32,
+    field2: String
+}
+
+impl Serialize for Data {
+    # Generated at compile time
+    fn serialize(&self) -> Vec[byte] {
+        # Direct memory layout serialization
+        unsafe {
+            slice::from_raw_parts(
+                self as *const _ as *const u8,
+                size_of::<Self>()
+            ).to_vec()
+        }
+    }
+}
+
+# Compile-time protocol definition
+protocol! {
+    Message {
+        variant Hello {
+            name: String
+        }
+        variant Goodbye {
+            reason: String
+        }
+    }
+}
+
+# Main function demonstrating features
+fn main() {
+    # Use generated tuple
+    tuple = Tuple::new(42, "hello", true)
+    
+    # Use factorial type
+    const FACT_5: u64 = Factorial[5]
+    
+    # Use string manipulation
+    const REPEATED: [char; 10] = str_repeat("ab")
+    
+    # Use reflected type
+    person = Person {
+        name: "John",
+        age: 30
+    }
+    name = person.get_name()
+    person.set_age(31)
+    
+    # Use generated enum
+    status = Status::OK
+    write(status.to_string())
+    
+    # Use SQL builder
+    query = sql!(SELECT id, name FROM users WHERE id > 10)
+    
+    # Use protocol
+    msg = Message::Hello { name: "World" }
+    
+    # All above operations have zero runtime overhead
+    # Everything is resolved at compile time
+}

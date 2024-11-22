@@ -1,0 +1,121 @@
+# Zero-Cost Abstractions Example
+# Shows how Seoggi provides high-level features with no runtime overhead
+
+# Static memory allocation with compile-time known size
+static BUFFER: [byte; 1024]  # Zero-heap allocation
+
+# Compile-time function execution
+const fn fibonacci(n: u32) -> u64 {
+    if n <= 1 { return n }
+    return fibonacci(n - 1) + fibonacci(n - 2)
+}
+
+# Computed at compile time
+const FIB_10: u64 = fibonacci(10)
+
+# Zero-cost iterator abstraction
+fn sum_array[T: Number, const N: usize](arr: [T; N]) -> T {
+    # Compiles to optimal machine code, no iterator objects created
+    arr.fold(0, |acc, x| acc + x)
+}
+
+# Stack-only custom allocator
+struct StackAllocator[const N: usize] {
+    data: [byte; N]
+    ptr: usize
+}
+
+impl[const N: usize] StackAllocator[N] {
+    # No heap allocation, pure stack usage
+    fn alloc[T](size: usize) -> Option[&mut T] {
+        if this.ptr + size > N {
+            return None
+        }
+        ptr = &mut this.data[this.ptr] as &mut T
+        this.ptr += size
+        Some(ptr)
+    }
+}
+
+# Zero-cost type erasure
+trait Virtual {
+    fn call(&self)
+}
+
+# Static dispatch, no vtable
+impl[F: fn()] Virtual for F {
+    fn call(&self) {
+        self()
+    }
+}
+
+# Compile-time memory safety without runtime checks
+struct Owner[T] {
+    data: T
+}
+
+impl[T] Owner[T] {
+    # Move semantics without runtime tracking
+    fn take(self) -> T {
+        # Ownership moved at compile time
+        self.data
+    }
+}
+
+# Effect system with zero runtime overhead
+effect Pure {
+    # No runtime cost, checked at compile time
+    fn pure[T](x: T) -> T
+}
+
+# Memory mapping with zero-copy
+unsafe fn map_memory(addr: usize, len: usize) -> &'static [byte] {
+    # Direct memory mapping, no copies
+    intrinsics::slice_from_raw_parts(addr as *const byte, len)
+}
+
+# Zero-cost async/await
+async fn zero_cost_async() {
+    # State machine generated at compile time
+    # No heap allocations or runtime overhead
+    await yield()
+}
+
+# Main function demonstrating features
+fn main() {
+    # Stack allocator with fixed size
+    allocator = StackAllocator[1024] { 
+        data: [0; 1024],
+        ptr: 0
+    }
+    
+    # Compile-time computed value
+    write("Fibonacci(10) = ${FIB_10}")
+    
+    # Zero-cost array operations
+    arr = [1, 2, 3, 4, 5]
+    sum = sum_array(arr)
+    
+    # Stack allocation
+    int_ptr = allocator.alloc[i32](4)
+    match int_ptr {
+        Some(ptr) => *ptr = 42,
+        None => write("Stack full")
+    }
+    
+    # Zero-cost closures
+    closure = || { write("Hello") }
+    closure.call()  # Static dispatch
+    
+    # Ownership demonstration
+    owner = Owner { data: 42 }
+    value = owner.take()  # No runtime cost
+    
+    # Pure effect handling
+    handle Pure {
+        fn pure[T](x: T) -> T { x }
+    } in {
+        result = pure(42)
+        write("Pure result: ${result}")
+    }
+}

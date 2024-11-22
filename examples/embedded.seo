@@ -1,0 +1,145 @@
+# Embedded Systems Example
+# Shows Seoggi's capabilities in resource-constrained environments
+
+# No std library dependency
+#![no_std]
+#![no_heap]
+
+# Hardware register definitions
+reg! {
+    GPIO_BASE = 0x40020000,
+    GPIO_OUT = 0x00,
+    GPIO_IN = 0x04,
+    GPIO_DIR = 0x08
+}
+
+# Compile-time bit manipulation
+const fn set_bit(reg: u32, bit: u32) -> u32 {
+    reg | (1 << bit)
+}
+
+const fn clear_bit(reg: u32, bit: u32) -> u32 {
+    reg & !(1 << bit)
+}
+
+# Zero-sized type for GPIO pin
+struct Pin[const N: u32];
+
+# Type-level safety for GPIO operations
+impl[const N: u32] Pin[N] {
+    # Direct register access, no function call overhead
+    fn set_high() {
+        unsafe {
+            write_volatile(GPIO_BASE + GPIO_OUT, set_bit(read_volatile(GPIO_BASE + GPIO_OUT), N))
+        }
+    }
+    
+    fn set_low() {
+        unsafe {
+            write_volatile(GPIO_BASE + GPIO_OUT, clear_bit(read_volatile(GPIO_BASE + GPIO_OUT), N))
+        }
+    }
+}
+
+# Interrupt handler with zero overhead
+#[interrupt]
+fn GPIO_IRQHandler() {
+    # Direct hardware access
+    unsafe {
+        # Clear interrupt flag
+        write_volatile(GPIO_BASE + 0x0C, 0)
+    }
+}
+
+# Fixed-point arithmetic for no-FPU systems
+struct Fixed[const N: u32] {
+    value: i32
+}
+
+impl[const N: u32] Fixed[N] {
+    # All operations done with integer math
+    fn multiply(self, other: Fixed[N]) -> Fixed[N] {
+        Fixed {
+            value: (self.value * other.value) >> N
+        }
+    }
+}
+
+# Zero-cost RTOS task
+#[task]
+fn blink() {
+    loop {
+        Pin[13].set_high()
+        delay(100)
+        Pin[13].set_low()
+        delay(100)
+    }
+}
+
+# Direct memory-mapped struct
+#[repr(C)]
+struct DMA_Controller {
+    control: u32,
+    status: u32,
+    source: u32,
+    dest: u32,
+    count: u32
+}
+
+impl DMA_Controller {
+    # Zero-copy DMA transfer
+    fn transfer(src: &[byte], dest: &mut [byte]) {
+        unsafe {
+            # Direct hardware configuration
+            (*self).source = src.as_ptr() as u32
+            (*self).dest = dest.as_ptr() as u32
+            (*self).count = src.len() as u32
+            (*self).control = 1  # Start transfer
+        }
+    }
+}
+
+# Compile-time initialized static data
+static LOOKUP_TABLE: [u8; 256] = {
+    let mut table = [0; 256]
+    let mut i = 0
+    while i < 256 {
+        table[i] = calculate_value(i)
+        i += 1
+    }
+    table
+}
+
+# Main function for embedded system
+fn main() -> ! {
+    # Initialize system with no dynamic allocation
+    init_system()
+    
+    # Configure GPIO
+    Pin[13].set_direction_out()
+    
+    # Start RTOS tasks
+    start_task(blink)
+    
+    # Enter low-power mode
+    loop {
+        wait_for_interrupt()
+    }
+}
+
+# Startup code with minimal assembly
+#[naked]
+#[no_mangle]
+fn _start() -> ! {
+    unsafe {
+        # Set up stack pointer
+        asm!("ldr r0, =_stack_top")
+        asm!("mov sp, r0")
+        
+        # Jump to main
+        asm!("bl main")
+        
+        # Should never return
+        loop {}
+    }
+}
