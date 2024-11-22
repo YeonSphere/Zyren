@@ -2,143 +2,31 @@
 
 Seoggi is a modern, multi-paradigm programming language designed for building reliable, efficient, and maintainable software systems. It combines the best features of existing languages while introducing innovative concepts for handling effects, memory management, and concurrency.
 
-## Key Features
+## Documentation
 
-### Type System
-- Strong static typing with type inference
-- Generics with advanced constraints
-- Dependent types for compile-time verification
-- Refinement types for precise specifications
-- Linear types for resource management
+📚 **All documentation has been moved to our website!**
 
-### Memory Management
-- Ownership-based memory management
-- Reference borrowing with lifetime tracking
-- Smart pointers (Box, Rc, Arc)
-- Pinning for self-referential structures
-- No garbage collection by default
+Visit [yeonsphere.github.io/seoggi](https://yeonsphere.github.io/seoggi.html) for:
+- Installation Guide
+- Language Reference
+- Tutorials & Examples
+- API Documentation
+- Best Practices
+- Contributing Guidelines
 
-### Effect System
-- Algebraic effects and handlers
-- Effect tracking and inference
-- Effect regions for isolation
-- Built-in effects for common operations
-- Custom user-defined effects
+## Quick Start
 
-### Concurrency
-- Async/await for asynchronous programming
-- Lightweight threads (fibers)
-- Channel-based message passing
-- Software transactional memory
-- Actor model support
-
-### Safety Features
-- Memory safety through ownership
-- Thread safety through type system
-- Effect safety through handlers
-- Null safety through Option type
-- Error handling through Result type
-
-### Development Tools
-- Advanced LSP implementation
-- Rich IDE support
-- Integrated build system
-- Package manager
-- Documentation generator
-
-## Getting Started
-
-### Installation
 ```bash
-git clone https://github.com/YeonSphere/Seoggi.git
-cd Seoggi
-./build.sh
+# Install Seoggi
+curl -fsSL https://raw.githubusercontent.com/YeonSphere/Seoggi/main/bootstrap/install.sh | sh
+
+# Create a new project
+seoc new myproject
+cd myproject
+
+# Run your project
+seoc run
 ```
-
-### Hello World
-```seoggi
-fn main() -> Result<(), IOError> {
-    println("Hello, World!")
-}
-```
-
-### Example: Effect Handling
-```seoggi
-// Define an effect
-effect State<T> {
-    fn get() -> T
-    fn set(value: T)
-}
-
-// Create a handler
-handler StateHandler<T> for State<T> {
-    fn get() -> T {
-        self.value.clone()
-    }
-    
-    fn set(value: T) {
-        self.value = value
-    }
-}
-
-// Use the effect
-fn counter() -> Result<(), StateError> {
-    let count = State::get()
-    State::set(count + 1)
-}
-```
-
-### Example: Concurrent Programming
-```seoggi
-async fn fetch_data(url: String) -> Result<String, NetworkError> {
-    let response = http::get(url).await?
-    Ok(response.text().await?)
-}
-
-fn main() -> Result<(), Error> {
-    let urls = vec![
-        "https://api.example.com/data1",
-        "https://api.example.com/data2"
-    ]
-    
-    let results = spawn_all(urls.iter().map(fetch_data))
-        .collect::<Vec<_>>()
-        .await?
-        
-    for result in results {
-        println("{}", result)
-    }
-}
-```
-
-## Project Structure
-```
-seoggi/
-├── core/
-│   ├── compiler/
-│   │   ├── frontend/
-│   │   │   ├── lexer.seo
-│   │   │   ├── parser.seo
-│   │   │   └── token.seo
-│   │   ├── analysis/
-│   │   │   ├── type_checker.seo
-│   │   │   └── effects.seo
-│   │   └── codegen/
-│   │       └── generator.seo
-│   └── runtime/
-├── std/
-│   └── prelude.seo
-├── tools/
-│   └── lsp/
-│       └── server.seo
-├── build.seo
-├── project.seo
-└── README.md
-```
-
-## Contributing
-
-We welcome contributions! Please see our [Contributing Guide](CONTRIBUTING.md) for details.
 
 ## License
 
