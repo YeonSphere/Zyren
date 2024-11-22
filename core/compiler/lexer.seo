@@ -14,10 +14,11 @@ effect Error {
 type TokenType {
     # Keywords
     Let | Fn | Type | Effect | Match | If | Else | For | While | Return |
-    Linear | Region | Unsafe | Actor | Atomic | Spawn | Do |
+    Linear | Region | Unsafe | Actor | Atomic | Spawn | Do | Async | Await |
+    Import | Export | Module | Interface | Impl | As | Where | When |
     
     # Literals
-    Int(Int) | Float(Float) | String(String) | Bool(Bool) |
+    Int(Int) | Float(Float) | String(String) | Bool(Bool) | Char(Char) |
     
     # Identifiers
     Identifier(String) |
@@ -27,13 +28,22 @@ type TokenType {
     Eq | Neq | Lt | Gt | Leq | Geq |            # Comparison
     And | Or | Not |                             # Logical
     Arrow | FatArrow | Dot | Bang |             # Special
+    PlusEq | MinusEq | StarEq | SlashEq |       # Compound assignment
+    AndAnd | OrOr |                             # Short-circuit logical
+    DotDot | DotDotEq |                         # Range operators
+    Question | QuestionDot |                     # Optional chaining
     
     # Delimiters
     LParen | RParen | LBrace | RBrace |
     LBracket | RBracket | Comma | Colon |
+    Dollar | BackTick |                         # For string interpolation
     
     # Indentation
     Indent | Dedent | Newline |
+    
+    # Special
+    StringStart | StringPart | StringEnd |      # For string interpolation
+    Comment(String) |                          # Preserve comments for documentation
     
     # End of file
     EOF
@@ -60,6 +70,7 @@ type Lexer {
     indent_stack: Vec<Int>
     current_indent: Int
     tokens: Vec<Token>
+    in_string: Bool
 }
 
 # Create a new lexer instance
@@ -69,7 +80,8 @@ fn new_lexer(input: String) -> Lexer {
         pos: Position { line: 1, column: 1, offset: 0 },
         indent_stack: vec![0],  # Base indentation level
         current_indent: 0,
-        tokens: Vec::new()
+        tokens: Vec::new(),
+        in_string: false
     }
 }
 
@@ -179,11 +191,17 @@ fn handle_indentation(self: &mut Lexer, spaces: Int) {
 }
 
 fn lex_string(self: &mut Lexer) -> Error + Result<()> {
+    let quote_type = self.peek()  # Can be ' or "
     self.advance()  # Skip opening quote
     let start = self.pos
     let mut value = String::new()
+    let mut in_interpolation = false
     
-    while self.peek() != '"' && !self.is_at_end() {
+    if quote_type == '"' {
+        self.add_token(TokenType::StringStart)
+    }
+    
+    while (self.peek() != quote_type || in_interpolation) && !self.is_at_end() {
         if self.peek() == '\\' {
             self.advance()
             value.push(match self.next_char() {
@@ -191,9 +209,34 @@ fn lex_string(self: &mut Lexer) -> Error + Result<()> {
                 't' => '\t',
                 'r' => '\r',
                 '"' => '"',
+                '\'' => '\'',
                 '\\' => '\\',
+                '$' => '$',
                 c => return Err(f"Invalid escape sequence: \\{c} at {self.pos}")
             })
+        } else if self.peek() == '$' && self.peek_next() == '{' && quote_type == '"' {
+            if !value.is_empty() {
+                self.add_token(TokenType::String(value.clone()))
+                value.clear()
+            }
+            self.advance()  # Skip $
+            self.advance()  # Skip {
+            self.add_token(TokenType::Dollar)
+            self.add_token(TokenType::LBrace)
+            in_interpolation = true
+            
+            // Recursively lex the interpolated expression
+            self.lex_until_brace()?
+            
+            in_interpolation = false
+            self.add_token(TokenType::StringPart)
+        } else if self.peek() == '}' && in_interpolation {
+            if !value.is_empty() {
+                self.add_token(TokenType::String(value.clone()))
+                value.clear()
+            }
+            self.advance()  # Skip }
+            in_interpolation = false
         } else {
             value.push(self.next_char())
         }
@@ -203,8 +246,49 @@ fn lex_string(self: &mut Lexer) -> Error + Result<()> {
         return Err(f"Unterminated string starting at {start}")
     }
     
+    if !value.is_empty() {
+        self.add_token(TokenType::String(value))
+    }
+    
     self.advance()  # Skip closing quote
-    self.add_token(TokenType::String(value))
+    
+    if quote_type == '"' {
+        self.add_token(TokenType::StringEnd)
+    }
+    
+    Ok(())
+}
+
+fn lex_until_brace(&mut self) -> Error + Result<()> {
+    let mut brace_count = 1
+    
+    while brace_count > 0 && !self.is_at_end() {
+        match self.peek() {
+            '{' => {
+                brace_count += 1
+                self.add_token(TokenType::LBrace)
+                self.advance()
+            }
+            '}' => {
+                brace_count -= 1
+                if brace_count > 0 {
+                    self.add_token(TokenType::RBrace)
+                }
+                self.advance()
+            }
+            '"' => {
+                self.lex_string()?
+            }
+            _ => {
+                self.tokenize_next()?
+            }
+        }
+    }
+    
+    if brace_count > 0 {
+        return Err(f"Unclosed interpolation at {self.pos}")
+    }
+    
     Ok(())
 }
 
@@ -283,6 +367,16 @@ fn lex_identifier(self: &mut Lexer) {
         "do" => TokenType::Do,
         "true" => TokenType::Bool(true),
         "false" => TokenType::Bool(false),
+        "async" => TokenType::Async,
+        "await" => TokenType::Await,
+        "import" => TokenType::Import,
+        "export" => TokenType::Export,
+        "module" => TokenType::Module,
+        "interface" => TokenType::Interface,
+        "impl" => TokenType::Impl,
+        "as" => TokenType::As,
+        "where" => TokenType::Where,
+        "when" => TokenType::When,
         _ => TokenType::Identifier(name)
     }
     
@@ -344,6 +438,31 @@ fn error(pos: Position, message: String) -> Error {
     }
 }
 
+fn recover_from_error(&mut self) -> Result<()> {
+    while !self.is_at_end() {
+        if self.previous_token()?.type == TokenType::Newline {
+            return Ok(())
+        }
+        
+        match self.peek() {
+            '\n' => {
+                self.advance()
+                self.add_token(TokenType::Newline)
+                return Ok(())
+            }
+            '"' | '\'' => {
+                if self.in_string {
+                    self.in_string = false
+                    self.advance()
+                    return Ok(())
+                }
+            }
+            _ => self.advance()
+        }
+    }
+    Ok(())
+}
+
 # Test cases
 
 #[test]
@@ -390,4 +509,87 @@ fn test_indentation() {
         .filter(|t| matches!(t.type, TokenType::Indent | TokenType::Dedent))
         .count()
     assert_eq!(indents, 4)  # 2 indents + 2 dedents
+}
+
+#[test]
+fn test_string_interpolation() {
+    let input = r#"let msg = "Hello, ${name}! Your score is ${score + 10}""#
+    let lexer = new_lexer(input)
+    let tokens = lexer.lex().unwrap()
+    
+    assert_eq!(tokens, vec![
+        Token::new(TokenType::Let),
+        Token::new(TokenType::Identifier("msg")),
+        Token::new(TokenType::Eq),
+        Token::new(TokenType::StringStart),
+        Token::new(TokenType::String("Hello, ")),
+        Token::new(TokenType::Dollar),
+        Token::new(TokenType::LBrace),
+        Token::new(TokenType::Identifier("name")),
+        Token::new(TokenType::RBrace),
+        Token::new(TokenType::StringPart),
+        Token::new(TokenType::String("! Your score is ")),
+        Token::new(TokenType::Dollar),
+        Token::new(TokenType::LBrace),
+        Token::new(TokenType::Identifier("score")),
+        Token::new(TokenType::Plus),
+        Token::new(TokenType::Int(10)),
+        Token::new(TokenType::RBrace),
+        Token::new(TokenType::StringEnd),
+        Token::new(TokenType::EOF)
+    ])
+}
+
+#[test]
+fn test_indentation() {
+    let input = r#"
+if true {
+    print("Hello")
+        nested()
+    back()
+}
+"#
+    let lexer = new_lexer(input)
+    let tokens = lexer.lex().unwrap()
+    
+    # Verify proper indentation tokens are generated
+    assert!(tokens.iter().any(|t| t.type == TokenType::Indent))
+    assert!(tokens.iter().any(|t| t.type == TokenType::Dedent))
+}
+
+#[test]
+fn test_error_recovery() {
+    let input = r#"
+let x = 42
+let y = @invalid
+let z = 10
+"#
+    let lexer = new_lexer(input)
+    let result = lexer.lex()
+    
+    # Should recover and continue lexing after error
+    assert!(result.is_ok())
+    let tokens = result.unwrap()
+    assert!(tokens.iter().any(|t| matches!(t.type, TokenType::Identifier("z"))))
+}
+
+#[test]
+fn test_nested_interpolation() {
+    let input = r#"let msg = "Value: ${compute("${name}'s score: ${score}")}"#
+    let lexer = new_lexer(input)
+    let tokens = lexer.lex().unwrap()
+    
+    # Verify nested interpolation is handled correctly
+    assert!(tokens.iter().filter(|t| t.type == TokenType::Dollar).count() == 3)
+}
+
+#[test]
+fn test_compound_operators() {
+    let input = "x += 1 && y -= 2"
+    let lexer = new_lexer(input)
+    let tokens = lexer.lex().unwrap()
+    
+    assert!(tokens.iter().any(|t| t.type == TokenType::PlusEq))
+    assert!(tokens.iter().any(|t| t.type == TokenType::MinusEq))
+    assert!(tokens.iter().any(|t| t.type == TokenType::AndAnd))
 }

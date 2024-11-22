@@ -97,6 +97,12 @@ module Compiler::Parser {
                 self.import_declaration()
             } else if self.match_token(TokenType::Export) {
                 self.export_declaration()
+            } else if self.match_token(TokenType::LinearType) {
+                self.linear_type_declaration()
+            } else if self.match_token(TokenType::Region) {
+                self.region_declaration()
+            } else if self.match_token(TokenType::Actor) {
+                self.actor_declaration()
             } else {
                 self.statement()
             }
@@ -194,6 +200,75 @@ module Compiler::Parser {
             self.consume(TokenType::RightBrace, "Expected '}' after effect body")?;
             
             Ok(Declaration::Effect(effect))
+        }
+
+        // Linear type parsing
+        func linear_type_declaration(&mut self) -> Result<Declaration> {
+            let name = self.consume(TokenType::Identifier, "Expected linear type name")?;
+            let mut linear_type = LinearTypeDecl::new(name.lexeme);
+            
+            // Parse generics
+            if self.match_token(TokenType::Less) {
+                linear_type.generics = self.generic_parameters()?;
+            }
+            
+            // Parse linear type body
+            self.consume(TokenType::LeftBrace, "Expected '{' before linear type body")?;
+            
+            while !self.check(TokenType::RightBrace) && !self.is_at_end() {
+                linear_type.operations.push(self.linear_operation()?);
+            }
+            
+            self.consume(TokenType::RightBrace, "Expected '}' after linear type body")?;
+            
+            Ok(Declaration::LinearType(linear_type))
+        }
+
+        // Region parsing
+        func region_declaration(&mut self) -> Result<Declaration> {
+            let name = self.consume(TokenType::Identifier, "Expected region name")?;
+            let mut region = RegionDecl::new(name.lexeme);
+            
+            // Parse region lifetime
+            if self.match_token(TokenType::Less) {
+                region.lifetime = Some(self.parse_lifetime()?);
+            }
+            
+            // Parse region constraints
+            if self.match_token(TokenType::Where) {
+                region.constraints = self.parse_constraints()?;
+            }
+            
+            // Parse region body
+            self.consume(TokenType::LeftBrace, "Expected '{' before region body")?;
+            
+            region.body = self.parse_block()?;
+            
+            self.consume(TokenType::RightBrace, "Expected '}' after region body")?;
+            
+            Ok(Declaration::Region(region))
+        }
+
+        // Actor parsing
+        func actor_declaration(&mut self) -> Result<Declaration> {
+            let name = self.consume(TokenType::Identifier, "Expected actor name")?;
+            let mut actor = ActorDecl::new(name.lexeme);
+            
+            // Parse actor state
+            self.consume(TokenType::LeftBrace, "Expected '{' before actor state")?;
+            
+            while !self.check(TokenType::RightBrace) && !self.is_at_end() {
+                match self.current_token()?.type {
+                    TokenType::Let | TokenType::Var => actor.state.push(self.parse_variable()?),
+                    TokenType::Message => actor.messages.push(self.parse_message()?),
+                    TokenType::Behavior => actor.behaviors.push(self.parse_behavior()?),
+                    _ => return Err(self.error("Expected state, message, or behavior declaration")),
+                }
+            }
+            
+            self.consume(TokenType::RightBrace, "Expected '}' after actor state")?;
+            
+            Ok(Declaration::Actor(actor))
         }
 
         // Pattern matching
@@ -388,6 +463,200 @@ module Compiler::Parser {
             }
             
             eprintln!(": {}", message);
+        }
+
+        // Parse effect declarations
+        func parse_effect(&mut self) -> Result<EffectDecl> {
+            let name = self.expect_identifier()?;
+            let generics = if self.match_token(TokenType::Lt) {
+                self.parse_generic_params()?
+            } else {
+                Vec::new()
+            };
+
+            self.expect(TokenType::LBrace)?;
+            let mut operations = Vec::new();
+            let mut handlers = Vec::new();
+
+            while !self.check(TokenType::RBrace) {
+                if self.match_token(TokenType::Handler) {
+                    handlers.push(self.parse_handler()?);
+                } else {
+                    operations.push(self.parse_effect_operation()?);
+                }
+            }
+
+            self.expect(TokenType::RBrace)?;
+            Ok(EffectDecl { name, generics, operations, handlers })
+        }
+
+        // Parse effect operations
+        func parse_effect_operation(&mut self) -> Result<EffectOpDecl> {
+            let name = self.expect_identifier()?;
+            self.expect(TokenType::LParen)?;
+            let params = self.parse_params()?;
+            self.expect(TokenType::RParen)?;
+            
+            let return_type = if self.match_token(TokenType::Arrow) {
+                self.parse_type()?
+            } else {
+                TypeExpr::unit()
+            };
+
+            let constraints = if self.match_token(TokenType::Where) {
+                self.parse_constraints()?
+            } else {
+                Vec::new()
+            };
+
+            Ok(EffectOpDecl { name, params, return_type, constraints })
+        }
+
+        // Parse linear type declarations
+        func parse_linear_type(&mut self) -> Result<LinearTypeDecl> {
+            let name = self.expect_identifier()?;
+            let generics = if self.match_token(TokenType::Lt) {
+                self.parse_generic_params()?
+            } else {
+                Vec::new()
+            };
+
+            self.expect(TokenType::LBrace)?;
+            let mut operations = Vec::new();
+            let mut destructor = None;
+
+            while !self.check(TokenType::RBrace) {
+                if self.match_token(TokenType::Destructor) {
+                    if destructor.is_some() {
+                        return Err(self.error("Multiple destructors in linear type"));
+                    }
+                    destructor = Some(self.parse_function()?);
+                } else {
+                    operations.push(self.parse_linear_operation()?);
+                }
+            }
+
+            self.expect(TokenType::RBrace)?;
+            Ok(LinearTypeDecl { name, generics, operations, destructor })
+        }
+
+        // Parse region declarations
+        func parse_region(&mut self) -> Result<RegionDecl> {
+            let name = self.expect_identifier()?;
+            let lifetime = if self.match_token(TokenType::Lt) {
+                Some(self.parse_lifetime()?)
+            } else {
+                None
+            };
+
+            let constraints = if self.match_token(TokenType::Where) {
+                self.parse_constraints()?
+            } else {
+                Vec::new()
+            };
+
+            let body = self.parse_block()?;
+            Ok(RegionDecl { name, lifetime, constraints, body })
+        }
+
+        // Parse actor declarations
+        func parse_actor(&mut self) -> Result<ActorDecl> {
+            let name = self.expect_identifier()?;
+            self.expect(TokenType::LBrace)?;
+            
+            let mut state = Vec::new();
+            let mut messages = Vec::new();
+            let mut behaviors = Vec::new();
+
+            while !self.check(TokenType::RBrace) {
+                match self.current_token()?.type {
+                    TokenType::Let | TokenType::Var => state.push(self.parse_variable()?),
+                    TokenType::Message => messages.push(self.parse_message()?),
+                    TokenType::Behavior => behaviors.push(self.parse_behavior()?),
+                    _ => return Err(self.error("Expected state, message, or behavior declaration")),
+                }
+            }
+
+            self.expect(TokenType::RBrace)?;
+            Ok(ActorDecl { name, state, messages, behaviors })
+        }
+
+        // Parse string interpolation
+        func parse_string_interpolation(&mut self) -> Result<StringInterpolationExpr> {
+            let mut parts = Vec::new();
+            
+            self.expect(TokenType::StringStart)?;
+            
+            while !self.check(TokenType::StringEnd) {
+                if self.match_token(TokenType::String) {
+                    parts.push(StringPart::Literal(self.previous_token()?.lexeme));
+                } else if self.match_token(TokenType::Dollar) {
+                    self.expect(TokenType::LBrace)?;
+                    let expr = self.parse_expression()?;
+                    self.expect(TokenType::RBrace)?;
+                    parts.push(StringPart::Expression(Box::new(expr)));
+                }
+            }
+            
+            self.expect(TokenType::StringEnd)?;
+            Ok(StringInterpolationExpr { parts })
+        }
+
+        // Parse async/await expressions
+        func parse_async_expression(&mut self) -> Result<AsyncExpr> {
+            let return_type = if self.match_token(TokenType::Arrow) {
+                self.parse_type()?
+            } else {
+                TypeExpr::unit()
+            };
+            
+            let body = self.parse_block()?;
+            Ok(AsyncExpr { body, return_type })
+        }
+
+        fn parse_await_expression(&mut self) -> Result<AwaitExpr> {
+            let target = Box::new(self.parse_expression()?);
+            Ok(AwaitExpr { target })
+        }
+
+        // Parse spawn expressions
+        func parse_spawn(&mut self) -> Result<SpawnExpr> {
+            let kind = if self.match_token(TokenType::Thread) {
+                SpawnKind::Thread
+            } else if self.match_token(TokenType::Task) {
+                SpawnKind::Task
+            } else if self.match_token(TokenType::Actor) {
+                let name = self.expect_identifier()?;
+                SpawnKind::Actor(name)
+            } else {
+                return Err(self.error("Expected thread, task, or actor"));
+            };
+
+            let body = Box::new(self.parse_expression()?);
+            Ok(SpawnExpr { kind, body })
+        }
+
+        // Parse dependent types
+        func parse_dependent_type(&mut self) -> Result<DependentTypeDecl> {
+            let name = self.expect_identifier()?;
+            self.expect(TokenType::LParen)?;
+            let params = self.parse_params()?;
+            self.expect(TokenType::RParen)?;
+            
+            self.expect(TokenType::Where)?;
+            let refinement = Box::new(self.parse_expression()?);
+            
+            Ok(DependentTypeDecl { name, params, refinement })
+        }
+
+        // Parse refinement types
+        func parse_refinement_type(&mut self) -> Result<RefinementTypeDecl> {
+            let base_type = self.parse_type()?;
+            self.expect(TokenType::LBrace)?;
+            let predicate = Box::new(self.parse_expression()?);
+            self.expect(TokenType::RBrace)?;
+            
+            Ok(RefinementTypeDecl { base_type, predicate })
         }
     }
 }

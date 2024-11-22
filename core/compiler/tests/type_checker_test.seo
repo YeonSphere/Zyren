@@ -1,0 +1,180 @@
+// Type checker test cases
+// Tests advanced type system features including dependent types,
+// refinement types, linear types, and effects
+
+module Tests::TypeChecker {
+    use Core::Types::*
+    use Core::AST::*
+    use Core::Error::TypeError
+    use Compiler::TypeChecker::TypeChecker
+    use std::assert
+
+    // Test helper to create expressions
+    func int_lit(n: i64) -> Expression {
+        Expression::IntLiteral(n)
+    }
+
+    func bool_lit(b: bool) -> Expression {
+        Expression::BoolLiteral(b)
+    }
+
+    func var(name: &str) -> Expression {
+        Expression::Variable(name.to_string())
+    }
+
+    func binary(left: Expression, op: BinaryOp, right: Expression) -> Expression {
+        Expression::Binary(Box::new(left), op, Box::new(right))
+    }
+
+    // Test cases for refinement types
+    #[test]
+    func test_positive_int_refinement() {
+        let mut checker = TypeChecker::new();
+        
+        // Define a positive integer type
+        let base = TypeExpr::Int(IntType::default());
+        let predicate = binary(var("x"), BinaryOp::Gt, int_lit(0));
+        
+        // This should be valid
+        let result = checker.check_refinement_type(&base, &predicate);
+        assert!(result.is_ok());
+        
+        // Test invalid value
+        let invalid_predicate = binary(var("x"), BinaryOp::Lt, int_lit(0));
+        let result = checker.check_refinement_type(&base, &invalid_predicate);
+        assert!(matches!(result, Err(TypeError::InvalidRefinement(_))));
+    }
+
+    #[test]
+    func test_sorted_array_refinement() {
+        let mut checker = TypeChecker::new();
+        
+        // Define a sorted array type
+        let base = TypeExpr::Array(Box::new(TypeExpr::Int(IntType::default())));
+        let predicate = binary(
+            binary(var("i"), BinaryOp::Lt, var("j")),
+            BinaryOp::Implies,
+            binary(
+                binary(var("arr[i]"), BinaryOp::Le, var("arr[j]")),
+                BinaryOp::And,
+                binary(var("i"), BinaryOp::Ge, int_lit(0))
+            )
+        );
+        
+        let result = checker.check_refinement_type(&base, &predicate);
+        assert!(result.is_ok());
+    }
+
+    // Test cases for dependent types
+    #[test]
+    func test_sized_vector() {
+        let mut checker = TypeChecker::new();
+        
+        // Define a vector type with size parameter
+        let params = vec![
+            ("size".to_string(), TypeExpr::Int(IntType::default())),
+            ("elem".to_string(), TypeExpr::Any)
+        ];
+        
+        let refinement = binary(
+            binary(var("self.length"), BinaryOp::Eq, var("size")),
+            BinaryOp::And,
+            binary(var("size"), BinaryOp::Ge, int_lit(0))
+        );
+        
+        let result = checker.check_dependent_type(&params, &refinement);
+        assert!(result.is_ok());
+    }
+
+    // Test cases for linear types
+    #[test]
+    func test_linear_file_handle() {
+        let mut checker = TypeChecker::new();
+        
+        // Define a linear file handle type
+        let inner = TypeExpr::Named("FileDescriptor".to_string(), vec![]);
+        let result = checker.check_linear_type(&inner);
+        assert!(result.is_ok());
+        
+        // Test that linear variables can't be used twice
+        let handle = var("file");
+        checker.check_linear(&handle).unwrap();
+        let result = checker.check_linear(&handle);
+        assert!(matches!(result, Err(TypeError::LinearVariableAlreadyConsumed(_))));
+    }
+
+    // Test cases for effects
+    #[test]
+    func test_io_effect() {
+        let mut checker = TypeChecker::new();
+        
+        // Define an IO effect
+        let mut ops = HashMap::new();
+        ops.insert("read".to_string(), EffectOp {
+            params: vec![],
+            return_type: TypeExpr::String
+        });
+        
+        let result = checker.check_effect_type("IO", &ops);
+        assert!(result.is_ok());
+        
+        // Test effect tracking
+        let read_op = Expression::EffectOp("IO".to_string(), "read".to_string());
+        let effects = checker.check_effects(&read_op);
+        assert!(!effects.unwrap().is_pure);
+    }
+
+    // Test cases for subtyping
+    #[test]
+    func test_refinement_subtyping() {
+        let mut checker = TypeChecker::new();
+        
+        // pos_int = {x: int | x > 0}
+        let pos_int = Type::Refinement(RefinementType {
+            base: Box::new(Type::Int(IntType::default())),
+            predicate: Box::new(binary(var("x"), BinaryOp::Gt, int_lit(0)))
+        });
+        
+        // pos_int_lt_10 = {x: int | x > 0 && x < 10}
+        let pos_int_lt_10 = Type::Refinement(RefinementType {
+            base: Box::new(Type::Int(IntType::default())),
+            predicate: Box::new(binary(
+                binary(var("x"), BinaryOp::Gt, int_lit(0)),
+                BinaryOp::And,
+                binary(var("x"), BinaryOp::Lt, int_lit(10))
+            ))
+        });
+        
+        // pos_int_lt_10 <: pos_int should be true
+        assert!(checker.is_subtype(&pos_int_lt_10, &pos_int));
+        // pos_int <: pos_int_lt_10 should be false
+        assert!(!checker.is_subtype(&pos_int, &pos_int_lt_10));
+    }
+
+    #[test]
+    func test_dependent_subtyping() {
+        let mut checker = TypeChecker::new();
+        
+        // vec[n] = {v: vec | len(v) = n}
+        let vec_n = Type::Dependent(DependentType {
+            name: "vec".to_string(),
+            params: vec![("n".to_string(), Type::Int(IntType::default()))],
+            refinement: Box::new(binary(var("len(v)"), BinaryOp::Eq, var("n")))
+        });
+        
+        // vec[n+1] = {v: vec | len(v) = n+1}
+        let vec_n_plus_1 = Type::Dependent(DependentType {
+            name: "vec".to_string(),
+            params: vec![("n".to_string(), Type::Int(IntType::default()))],
+            refinement: Box::new(binary(
+                var("len(v)"),
+                BinaryOp::Eq,
+                binary(var("n"), BinaryOp::Add, int_lit(1))
+            ))
+        });
+        
+        // vec[n] and vec[n+1] should be incomparable
+        assert!(!checker.is_subtype(&vec_n, &vec_n_plus_1));
+        assert!(!checker.is_subtype(&vec_n_plus_1, &vec_n));
+    }
+}

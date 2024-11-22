@@ -1,116 +1,34 @@
-module Main {
-    // Import kernel modules
-    use Kernel
-    use IO
-    use Memory
-    use System
+# Simple kernel module example
 
-    // Device driver structure
-    struct MyDevice {
-        major: int,
-        name: str,
-        buffer: Memory.Buffer
-    }
+# Module information
+name = "simple_module"
+version = "1.0"
 
-    // Initialize device
-    fn init_device() -> MyDevice {
-        return MyDevice {
-            major: Kernel.register_chrdev(0, "mydevice"),
-            name: "mydevice",
-            buffer: Memory.Buffer.new(1024)  // 1KB buffer
-        }
-    }
+# Initialize module
+write("Loading module " + name + " version " + version)
 
-    // File operations
-    fn device_open(dev: MyDevice) -> Result<int, str> {
-        IO.print("Device opened")
-        return Ok(0)
-    }
+# Register device
+device = register_device("simple_dev")
 
-    fn device_read(dev: MyDevice, buf: Memory.Buffer, count: int) -> Result<int, str> {
-        // Read from device buffer
-        bytes_read = dev.buffer.read(buf, count)
-        IO.print(f"Read {bytes_read} bytes")
-        return Ok(bytes_read)
-    }
-
-    fn device_write(dev: MyDevice, buf: Memory.Buffer, count: int) -> Result<int, str> {
-        // Write to device buffer
-        bytes_written = dev.buffer.write(buf, count)
-        IO.print(f"Wrote {bytes_written} bytes")
-        return Ok(bytes_written)
-    }
-
-    fn device_close(dev: MyDevice) -> Result<int, str> {
-        IO.print("Device closed")
-        return Ok(0)
-    }
-
-    // Interrupt handler
-    fn handle_interrupt(irq: int, dev: MyDevice) -> bool {
-        IO.print(f"Handling interrupt {irq}")
-        
-        // Process interrupt
-        if dev.buffer.available() > 0 {
-            data = dev.buffer.peek(16)  // Look at next 16 bytes
-            Kernel.process_data(data)
-            return true
-        }
-        
-        return false
-    }
-
-    // Module initialization
-    fn module_init() {
-        IO.print("Initializing kernel module...")
-        
-        // Create device
-        device = init_device()
-        
-        // Register interrupt handler
-        Kernel.request_irq(
-            irq: 10,
-            handler: fn(irq) { handle_interrupt(irq, device) },
-            flags: Kernel.IRQF_SHARED,
-            name: device.name
-        )
-        
-        // Set up file operations
-        ops = Kernel.FileOperations {
-            open: fn() { device_open(device) },
-            read: fn(buf, count) { device_read(device, buf, count) },
-            write: fn(buf, count) { device_write(device, buf, count) },
-            close: fn() { device_close(device) }
-        }
-        
-        // Create device file
-        Kernel.create_device(
-            name: device.name,
-            major: device.major,
-            ops: ops
-        )
-        
-        IO.print("Kernel module initialized successfully!")
-    }
-
-    // Module cleanup
-    fn module_cleanup() {
-        IO.print("Cleaning up kernel module...")
-        
-        // Unregister device and free resources
-        Kernel.unregister_chrdev(device.major, device.name)
-        Kernel.free_irq(10, device)
-        
-        IO.print("Kernel module cleaned up successfully!")
-    }
-
-    // Main entry point
-    fn main() {
-        // Register module handlers
-        Kernel.module_init(module_init)
-        Kernel.module_cleanup(module_cleanup)
-        
-        // Start the module
-        module_init()
-    }
+# Define handlers
+fn read_handler(size) {
+    write("Reading " + str(size) + " bytes")
+    return "Hello from kernel module"
 }
+
+fn write_handler(buffer, size) {
+    write("Writing " + str(size) + " bytes: " + buffer)
+    return size
+}
+
+# Set handlers
+device.read = read_handler
+device.write = write_handler
+
+# Register interrupt
+fn handle_interrupt(irq) {
+    write("Handling interrupt: " + str(irq))
+}
+
+register_interrupt(42, handle_interrupt)
+write("Module " + name + " loaded successfully")

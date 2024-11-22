@@ -1,70 +1,42 @@
-module Main {
-    // Import AI and tensor modules
-    use AI
-    use Tensor
-    use IO
-    use Math
+# Simple neural network example
 
-    // Define a simple neural network
-    fn create_model() -> AI.Model {
-        return AI.Sequential([
-            AI.Layer.Dense(units: 128, activation: "relu"),
-            AI.Layer.Dropout(0.2),
-            AI.Layer.Dense(units: 64, activation: "relu"),
-            AI.Layer.Dense(units: 10, activation: "softmax")
-        ])
-    }
+# Define model architecture
+model = {
+    layers: [
+        {type: "input", size: 2},
+        {type: "hidden", size: 4, activation: "relu"},
+        {type: "output", size: 1, activation: "sigmoid"}
+    ]
+}
 
-    // Data preprocessing
-    fn preprocess_data(data: Tensor) -> Tensor {
-        // Normalize data
-        normalized = data / 255.0
-        
-        // Reshape and augment
-        return AI.augment(normalized, [
-            AI.Transform.RandomRotation(0.1),
-            AI.Transform.RandomZoom(0.1)
-        ])
-    }
+# Training data (XOR problem)
+data = [
+    {input: [0, 0], output: 0},
+    {input: [0, 1], output: 1},
+    {input: [1, 0], output: 1},
+    {input: [1, 1], output: 0}
+]
 
-    // Training loop
-    fn train_model(model: AI.Model, data: AI.Dataset) {
-        // Configure training
-        model.compile(
-            optimizer: AI.Optimizer.Adam(learning_rate: 0.001),
-            loss: "categorical_crossentropy",
-            metrics: ["accuracy"]
-        )
-        
-        // Train model
-        model.fit(
-            data.train_data,
-            epochs: 10,
-            batch_size: 32,
-            validation_data: data.test_data
-        )
-    }
+# Train model
+write("Training XOR model...")
 
-    // Main function
-    fn main() {
-        IO.print("Loading MNIST dataset...")
-        dataset = AI.Dataset.load("mnist")
-        
-        IO.print("Preprocessing data...")
-        processed_data = preprocess_data(dataset.data)
-        
-        IO.print("Creating model...")
-        model = create_model()
-        
-        IO.print("Training model...")
-        train_model(model, processed_data)
-        
-        IO.print("Evaluating model...")
-        accuracy = model.evaluate(dataset.test_data)
-        IO.print(f"Test accuracy: {accuracy}")
-        
-        // Save model
-        model.save("mnist_model.seo")
-        IO.print("Model saved successfully!")
+epochs = 1000
+for epoch in range(epochs) {
+    error = 0
+    for sample in data {
+        pred = predict(model, sample.input)
+        error = error + abs(pred - sample.output)
     }
+    
+    if epoch % 100 == 0 {
+        write("Epoch " + str(epoch) + "/" + str(epochs) + ", Error: " + str(error))
+    }
+}
+
+# Test model
+write("\nTesting model:")
+for sample in data {
+    input_str = str(sample.input[0]) + "," + str(sample.input[1])
+    pred = predict(model, sample.input)
+    write("Input: " + input_str + " -> Predicted: " + str(pred) + ", Expected: " + str(sample.output))
 }

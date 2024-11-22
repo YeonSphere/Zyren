@@ -31,18 +31,28 @@ pub enum NodeType {
     Interface(InterfaceDecl),
     Function(FunctionDecl),
     Variable(VarDecl),
+    Effect(EffectDecl),
+    Handler(HandlerDecl),
+    Region(RegionDecl),
+    Actor(ActorDecl),
     
     // Types
     Type(TypeExpr),
     GenericParam(GenericParamDecl),
-    Effect(EffectDecl),
+    LinearType(LinearTypeDecl),
+    DependentType(DependentTypeDecl),
+    RefinementType(RefinementTypeDecl),
     
     // Statements
     Block(BlockStmt),
     If(IfStmt),
     Match(MatchStmt),
     Loop(LoopStmt),
+    For(ForStmt),
+    While(WhileStmt),
     Return(ReturnStmt),
+    Do(DoStmt),
+    Defer(DeferStmt),
     
     // Expressions
     Binary(BinaryExpr),
@@ -50,6 +60,14 @@ pub enum NodeType {
     Call(CallExpr),
     Member(MemberExpr),
     Lambda(LambdaExpr),
+    Async(AsyncExpr),
+    Await(AwaitExpr),
+    Spawn(SpawnExpr),
+    StringInterpolation(StringInterpolationExpr),
+    
+    // Effects and Regions
+    EffectOp(EffectOpExpr),
+    RegionOp(RegionOpExpr),
     
     // Patterns
     Pattern(PatternExpr),
@@ -59,6 +77,132 @@ pub enum NodeType {
     FloatLiteral(f64),
     StringLiteral(Arc<str>),
     BoolLiteral(bool),
+    CharLiteral(char),
+}
+
+// Effect system
+#[derive(Clone, Debug)]
+pub struct EffectDecl {
+    pub name: Identifier,
+    pub generics: Vec<GenericParamDecl>,
+    pub operations: Vec<EffectOpDecl>,
+    pub handlers: Vec<HandlerDecl>,
+}
+
+#[derive(Clone, Debug)]
+pub struct EffectOpDecl {
+    pub name: Identifier,
+    pub params: Vec<ParamDecl>,
+    pub return_type: TypeExpr,
+    pub constraints: Vec<Constraint>,
+}
+
+#[derive(Clone, Debug)]
+pub struct HandlerDecl {
+    pub effect_name: Identifier,
+    pub generics: Vec<GenericParamDecl>,
+    pub operations: Vec<HandlerOpDecl>,
+    pub state: Option<TypeExpr>,
+}
+
+// Linear types
+#[derive(Clone, Debug)]
+pub struct LinearTypeDecl {
+    pub name: Identifier,
+    pub generics: Vec<GenericParamDecl>,
+    pub operations: Vec<LinearOpDecl>,
+    pub destructor: Option<FunctionDecl>,
+}
+
+#[derive(Clone, Debug)]
+pub struct LinearOpDecl {
+    pub name: Identifier,
+    pub consumes_self: bool,
+    pub params: Vec<ParamDecl>,
+    pub return_type: TypeExpr,
+}
+
+// Region system
+#[derive(Clone, Debug)]
+pub struct RegionDecl {
+    pub name: Identifier,
+    pub lifetime: Option<LifetimeExpr>,
+    pub constraints: Vec<Constraint>,
+    pub body: BlockStmt,
+}
+
+#[derive(Clone, Debug)]
+pub struct LifetimeExpr {
+    pub name: Identifier,
+    pub bounds: Vec<LifetimeBound>,
+}
+
+// Actor system
+#[derive(Clone, Debug)]
+pub struct ActorDecl {
+    pub name: Identifier,
+    pub state: Vec<VarDecl>,
+    pub messages: Vec<MessageDecl>,
+    pub behaviors: Vec<BehaviorDecl>,
+}
+
+#[derive(Clone, Debug)]
+pub struct MessageDecl {
+    pub name: Identifier,
+    pub params: Vec<ParamDecl>,
+    pub return_type: Option<TypeExpr>,
+}
+
+// Enhanced type system
+#[derive(Clone, Debug)]
+pub struct DependentTypeDecl {
+    pub name: Identifier,
+    pub params: Vec<ParamDecl>,
+    pub refinement: Box<dyn Node>,
+}
+
+#[derive(Clone, Debug)]
+pub struct RefinementTypeDecl {
+    pub base_type: TypeExpr,
+    pub predicate: Box<dyn Node>,
+}
+
+// String interpolation
+#[derive(Clone, Debug)]
+pub struct StringInterpolationExpr {
+    pub parts: Vec<StringPart>,
+}
+
+#[derive(Clone, Debug)]
+pub enum StringPart {
+    Literal(String),
+    Expression(Box<dyn Node>),
+}
+
+// Async/Await
+#[derive(Clone, Debug)]
+pub struct AsyncExpr {
+    pub body: BlockStmt,
+    pub return_type: TypeExpr,
+}
+
+#[derive(Clone, Debug)]
+pub struct AwaitExpr {
+    pub target: Box<dyn Node>,
+}
+
+// Concurrency
+#[derive(Clone, Debug)]
+pub struct SpawnExpr {
+    pub kind: SpawnKind,
+    pub body: Box<dyn Node>,
+}
+
+#[derive(Clone, Debug)]
+pub enum SpawnKind {
+    Thread,
+    Task,
+    Actor(Identifier),
 }
 
 // Class declaration
@@ -82,30 +226,6 @@ pub struct TraitDecl {
     pub body: Vec<Box<dyn Node>>,
     pub associated_types: Vec<TypeExpr>,
     pub effects: Vec<EffectDecl>,
-}
-
-// Effect system
-#[derive(Clone, Debug)]
-pub struct EffectDecl {
-    pub name: Identifier,
-    pub params: Vec<TypeExpr>,
-    pub handlers: Vec<FunctionDecl>,
-}
-
-// Pattern matching
-#[derive(Clone, Debug)]
-pub struct PatternExpr {
-    pub kind: PatternKind,
-    pub guard: Option<Box<dyn Node>>,
-}
-
-#[derive(Clone, Debug)]
-pub enum PatternKind {
-    Literal(Box<dyn Node>),
-    Constructor(TypeExpr, Vec<PatternExpr>),
-    Binding(Identifier, Option<Box<PatternExpr>>),
-    Tuple(Vec<PatternExpr>),
-    Or(Vec<PatternExpr>),
 }
 
 // Type system

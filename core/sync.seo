@@ -1,0 +1,153 @@
+# Seoggi Synchronization Primitives
+# Implements core synchronization mechanisms for thread safety
+
+# Mutex implementation
+type Mutex {
+    locked: bool
+    owner: Thread?
+    waiters: Queue[Thread]
+}
+
+fn create_mutex() -> Mutex {
+    return Mutex {
+        locked: false,
+        owner: null,
+        waiters: Queue()
+    }
+}
+
+fn lock(mutex: Mutex) {
+    current = current_thread()
+    
+    if mutex.locked {
+        if mutex.owner == current {
+            error("Mutex already locked by current thread")
+        }
+        mutex.waiters.push(current)
+        suspend_thread(current)
+    }
+    
+    mutex.locked = true
+    mutex.owner = current
+}
+
+fn unlock(mutex: Mutex) {
+    if !mutex.locked {
+        error("Mutex not locked")
+    }
+    
+    if mutex.owner != current_thread() {
+        error("Mutex owned by different thread")
+    }
+    
+    mutex.locked = false
+    mutex.owner = null
+    
+    if !mutex.waiters.empty() {
+        next = mutex.waiters.pop()
+        resume_thread(next)
+    }
+}
+
+# Condition Variable implementation
+type CondVar {
+    waiters: Queue[Thread]
+    mutex: Mutex?
+}
+
+fn create_condvar() -> CondVar {
+    return CondVar {
+        waiters: Queue(),
+        mutex: null
+    }
+}
+
+fn wait(cond: CondVar, mutex: Mutex) {
+    if !mutex.locked || mutex.owner != current_thread() {
+        error("Must own mutex to wait on condition")
+    }
+    
+    cond.mutex = mutex
+    cond.waiters.push(current_thread())
+    unlock(mutex)
+    suspend_thread(current_thread())
+    lock(mutex)
+}
+
+fn signal(cond: CondVar) {
+    if !cond.waiters.empty() {
+        thread = cond.waiters.pop()
+        resume_thread(thread)
+    }
+}
+
+fn broadcast(cond: CondVar) {
+    while !cond.waiters.empty() {
+        thread = cond.waiters.pop()
+        resume_thread(thread)
+    }
+}
+
+# RwLock implementation
+type RwLock {
+    readers: int
+    writer: Thread?
+    read_waiters: Queue[Thread]
+    write_waiters: Queue[Thread]
+}
+
+fn create_rwlock() -> RwLock {
+    return RwLock {
+        readers: 0,
+        writer: null,
+        read_waiters: Queue(),
+        write_waiters: Queue()
+    }
+}
+
+fn read_lock(lock: RwLock) {
+    if lock.writer != null {
+        lock.read_waiters.push(current_thread())
+        suspend_thread(current_thread())
+    }
+    lock.readers += 1
+}
+
+fn read_unlock(lock: RwLock) {
+    if lock.readers <= 0 {
+        error("No active readers")
+    }
+    
+    lock.readers -= 1
+    if lock.readers == 0 && !lock.write_waiters.empty() {
+        thread = lock.write_waiters.pop()
+        resume_thread(thread)
+    }
+}
+
+fn write_lock(lock: RwLock) {
+    if lock.writer != null || lock.readers > 0 {
+        lock.write_waiters.push(current_thread())
+        suspend_thread(current_thread())
+    }
+    lock.writer = current_thread()
+}
+
+fn write_unlock(lock: RwLock) {
+    if lock.writer != current_thread() {
+        error("Not lock owner")
+    }
+    
+    lock.writer = null
+    
+    # Prefer writers over readers for fairness
+    if !lock.write_waiters.empty() {
+        thread = lock.write_waiters.pop()
+        resume_thread(thread)
+    } else {
+        while !lock.read_waiters.empty() {
+            thread = lock.read_waiters.pop()
+            resume_thread(thread)
+        }
+    }
+}

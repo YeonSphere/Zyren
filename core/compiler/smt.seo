@@ -1,0 +1,191 @@
+// Seoggi SMT Solver Integration
+// Handles verification of dependent types and refinement types using Z3
+
+module Compiler::SMT {
+    use std::collections::HashMap
+    use Core::Types::*
+    use Core::AST::*
+    use Core::Error::TypeError
+    use z3::{Context, Solver, Sort, Ast, Symbol}
+
+    type SMTSolver {
+        ctx: Context,
+        solver: Solver,
+        var_map: HashMap<string, z3::Ast>,
+        type_map: HashMap<string, z3::Sort>
+    }
+
+    type SMTResult {
+        Valid,
+        Invalid(string),  // Counter-example
+        Unknown(string)   // Reason
+    }
+
+    impl SMTSolver {
+        func new() -> Self {
+            let cfg = z3::Config::new();
+            let ctx = z3::Context::new(&cfg);
+            let solver = z3::Solver::new(&ctx);
+            
+            SMTSolver {
+                ctx,
+                solver,
+                var_map: HashMap::new(),
+                type_map: HashMap::new()
+            }
+        }
+
+        // Convert Seoggi types to Z3 sorts
+        func to_sort(&self, ty: &Type) -> z3::Sort {
+            match ty {
+                Type::Int(_) => z3::Sort::int(&self.ctx),
+                Type::Float(_) => z3::Sort::real(&self.ctx),
+                Type::Bool => z3::Sort::bool(&self.ctx),
+                Type::Array(elem) => {
+                    let elem_sort = self.to_sort(elem);
+                    z3::Sort::array(&self.ctx, &z3::Sort::int(&self.ctx), &elem_sort)
+                }
+                _ => z3::Sort::uninterpreted(&self.ctx, Symbol::String("Any"))
+            }
+        }
+
+        // Convert Seoggi expressions to Z3 AST
+        func to_ast(&mut self, expr: &Expression) -> Result<z3::Ast, TypeError> {
+            match expr {
+                Expression::IntLiteral(n) => {
+                    Ok(z3::Ast::int_numeral(&self.ctx, *n))
+                }
+                
+                Expression::FloatLiteral(f) => {
+                    Ok(z3::Ast::real_numeral(&self.ctx, *f))
+                }
+                
+                Expression::BoolLiteral(b) => {
+                    Ok(z3::Ast::bool_val(&self.ctx, *b))
+                }
+                
+                Expression::Variable(name) => {
+                    if let Some(ast) = self.var_map.get(name) {
+                        Ok(ast.clone())
+                    } else {
+                        let sort = z3::Sort::int(&self.ctx);  // Default to int
+                        let var = z3::Ast::fresh_const(&self.ctx, name, &sort);
+                        self.var_map.insert(name.clone(), var.clone());
+                        Ok(var)
+                    }
+                }
+                
+                Expression::Binary(left, op, right) => {
+                    let left_ast = self.to_ast(left)?;
+                    let right_ast = self.to_ast(right)?;
+                    
+                    match op {
+                        BinaryOp::Add => Ok(left_ast.add(&right_ast)),
+                        BinaryOp::Sub => Ok(left_ast.sub(&right_ast)),
+                        BinaryOp::Mul => Ok(left_ast.mul(&right_ast)),
+                        BinaryOp::Div => Ok(left_ast.div(&right_ast)),
+                        BinaryOp::Eq => Ok(left_ast._eq(&right_ast)),
+                        BinaryOp::Lt => Ok(left_ast.lt(&right_ast)),
+                        BinaryOp::Gt => Ok(left_ast.gt(&right_ast)),
+                        BinaryOp::Le => Ok(left_ast.le(&right_ast)),
+                        BinaryOp::Ge => Ok(left_ast.ge(&right_ast)),
+                        BinaryOp::And => Ok(left_ast.and(&[&right_ast])),
+                        BinaryOp::Or => Ok(left_ast.or(&[&right_ast])),
+                        _ => Err(TypeError::UnsupportedOperation)
+                    }
+                }
+                
+                _ => Err(TypeError::UnsupportedExpression)
+            }
+        }
+
+        // Check if a refinement type predicate is valid
+        func check_refinement(&mut self, base: &Type, predicate: &Expression) -> SMTResult {
+            // Convert base type constraints
+            let base_constraints = self.get_type_constraints(base);
+            for constraint in base_constraints {
+                self.solver.assert(&constraint);
+            }
+            
+            // Convert and assert the predicate
+            match self.to_ast(predicate) {
+                Ok(pred_ast) => {
+                    // Check if predicate is satisfiable
+                    self.solver.push();
+                    self.solver.assert(&pred_ast.not());
+                    
+                    match self.solver.check() {
+                        z3::SatResult::Sat => {
+                            let model = self.solver.get_model().unwrap();
+                            let counter_example = self.model_to_string(&model);
+                            self.solver.pop(1);
+                            SMTResult::Invalid(counter_example)
+                        }
+                        z3::SatResult::Unsat => {
+                            self.solver.pop(1);
+                            SMTResult::Valid
+                        }
+                        z3::SatResult::Unknown => {
+                            self.solver.pop(1);
+                            SMTResult::Unknown("Solver timeout or unknown result".to_string())
+                        }
+                    }
+                }
+                Err(e) => SMTResult::Unknown(format!("Failed to convert predicate: {}", e))
+            }
+        }
+
+        // Check if a dependent type is valid
+        func check_dependent(&mut self, params: &[(string, Type)], refinement: &Expression) -> SMTResult {
+            // Add parameter variables to context
+            for (name, ty) in params {
+                let sort = self.to_sort(ty);
+                let var = z3::Ast::fresh_const(&self.ctx, name, &sort);
+                self.var_map.insert(name.clone(), var);
+            }
+            
+            // Check refinement
+            self.check_refinement(&Type::Unit, refinement)
+        }
+
+        // Get constraints implied by a type
+        func get_type_constraints(&self, ty: &Type) -> Vec<z3::Ast> {
+            let mut constraints = Vec::new();
+            
+            match ty {
+                Type::Int(int_type) => {
+                    if let Some(min) = int_type.min {
+                        let var = z3::Ast::fresh_const(&self.ctx, "x", &z3::Sort::int(&self.ctx));
+                        let min_ast = z3::Ast::int_numeral(&self.ctx, min);
+                        constraints.push(var.ge(&min_ast));
+                    }
+                    if let Some(max) = int_type.max {
+                        let var = z3::Ast::fresh_const(&self.ctx, "x", &z3::Sort::int(&self.ctx));
+                        let max_ast = z3::Ast::int_numeral(&self.ctx, max);
+                        constraints.push(var.le(&max_ast));
+                    }
+                }
+                
+                Type::Array(elem) => {
+                    let elem_constraints = self.get_type_constraints(elem);
+                    constraints.extend(elem_constraints);
+                }
+                
+                _ => {}
+            }
+            
+            constraints
+        }
+
+        // Convert Z3 model to string representation
+        func model_to_string(&self, model: &z3::Model) -> string {
+            let mut result = String::new();
+            for (name, ast) in &self.var_map {
+                if let Some(value) = model.eval(ast, true) {
+                    result.push_str(&format!("{} = {}\n", name, value));
+                }
+            }
+            result
+        }
+    }
+}

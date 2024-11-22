@@ -1,9 +1,5 @@
-module Main {
-    use IO
+# Simple text input/output example
 
-    func main() {
-        IO.print("Enter some text: ")
-        let input = IO.read_line()
-        IO.print("You entered: " + input)
-    }
-}
+write("Enter your name: ")
+name = read()
+write("Hello, " + name)

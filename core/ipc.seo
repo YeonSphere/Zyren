@@ -1,0 +1,92 @@
+# Seoggi IPC Core
+# Implements inter-process communication mechanisms
+
+# Message passing
+fn send_message(pid, message) {
+    # Send message to process
+    msg = serialize(message)
+    write_pipe(pid, msg)
+}
+
+fn receive_message() {
+    # Receive message from any process
+    msg = read_pipe()
+    return deserialize(msg)
+}
+
+# Shared memory
+fn create_shared_memory(key, size) {
+    # Create shared memory segment
+    shmid = shmget(key, size)
+    if shmid == null {
+        error("Failed to create shared memory")
+    }
+    return shmid
+}
+
+fn attach_shared_memory(shmid) {
+    # Attach to shared memory segment
+    ptr = shmat(shmid)
+    if ptr == null {
+        error("Failed to attach shared memory")
+    }
+    return ptr
+}
+
+# Semaphores
+fn create_semaphore(key, value) {
+    # Create semaphore
+    semid = semget(key, value)
+    if semid == null {
+        error("Failed to create semaphore")
+    }
+    return semid
+}
+
+fn wait_semaphore(semid) {
+    # Wait on semaphore
+    semop(semid, -1)
+}
+
+fn signal_semaphore(semid) {
+    # Signal semaphore
+    semop(semid, 1)
+}
+
+# Message queues
+fn create_queue(key) {
+    # Create message queue
+    qid = msgget(key)
+    if qid == null {
+        error("Failed to create message queue")
+    }
+    return qid
+}
+
+fn send_to_queue(qid, message) {
+    # Send message to queue
+    msgsnd(qid, message)
+}
+
+fn receive_from_queue(qid) {
+    # Receive message from queue
+    msg = msgrcv(qid)
+    return msg
+}
+
+# Event channels
+fn create_event_channel() {
+    # Create event notification channel
+    return create_pipe()
+}
+
+fn wait_for_event(channel) {
+    # Wait for event on channel
+    event = read_pipe(channel)
+    return event
+}
+
+fn trigger_event(channel, event) {
+    # Trigger event on channel
+    write_pipe(channel, event)
+}

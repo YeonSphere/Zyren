@@ -1,14 +1,16 @@
 module Compiler::TypeChecker {
     use Core::Types::{Type, TypeEnvironment, TypeError, Result}
-    use Core::Collections::{Vector, HashMap}
+    use Core::Collections::{Vector, HashMap, HashSet}
     use Compiler::AST::*
     use Compiler::Builtins
+    use SMTSolver; // Import SMT solver module
 
     type TypeChecker {
         env: TypeEnvironment,
         current_module: Option<string>,
         current_function: Option<FunctionType>,
-        errors: Vector<TypeError>
+        errors: Vector<TypeError>,
+        consumed_variables: HashSet<string>
     }
 
     type FunctionType {
@@ -27,13 +29,19 @@ module Compiler::TypeChecker {
         Web
     }
 
+    type EffectSet {
+        effects: HashSet<Effect>,
+        is_pure: bool
+    }
+
     impl TypeChecker {
         func new() -> Self {
             let mut checker = TypeChecker {
                 env: TypeEnvironment::new(),
                 current_module: None,
                 current_function: None,
-                errors: Vector::new()
+                errors: Vector::new(),
+                consumed_variables: HashSet::new()
             };
             
             // Register built-in types
@@ -210,7 +218,255 @@ module Compiler::TypeChecker {
             }
         }
 
-        // Helper functions for type checking
+        // Enhanced type checking with SMT solver
+        func check_refinement_type(&mut self, base: &TypeExpr, predicate: &Expression) -> Result<Type> {
+            let base_type = self.check_type(base)?;
+            
+            // Create SMT solver instance
+            let mut solver = SMTSolver::new();
+            
+            // Check refinement validity
+            match solver.check_refinement(&base_type, predicate) {
+                SMTResult::Valid => {
+                    Ok(Type::Refinement(RefinementType {
+                        base: Box::new(base_type),
+                        predicate: Box::new(predicate.clone())
+                    }))
+                }
+                SMTResult::Invalid(counter_example) => {
+                    Err(TypeError::InvalidRefinement(format!(
+                        "Refinement type invalid. Counter-example: {}", 
+                        counter_example
+                    )))
+                }
+                SMTResult::Unknown(reason) => {
+                    Err(TypeError::UnknownRefinement(format!(
+                        "Could not verify refinement type: {}", 
+                        reason
+                    )))
+                }
+            }
+        }
+        
+        func check_dependent_type(&mut self, params: &[(String, TypeExpr)], refinement: &Expression) -> Result<Type> {
+            // Check parameter types
+            let mut checked_params = Vector::new();
+            for (name, ty) in params {
+                let checked_type = self.check_type(ty)?;
+                checked_params.push((name.clone(), checked_type));
+            }
+            
+            // Create SMT solver instance
+            let mut solver = SMTSolver::new();
+            
+            // Check dependent type validity
+            match solver.check_dependent(&checked_params, refinement) {
+                SMTResult::Valid => {
+                    Ok(Type::Dependent(DependentType {
+                        name: "".to_string(),
+                        params: checked_params,
+                        refinement: Box::new(refinement.clone())
+                    }))
+                }
+                SMTResult::Invalid(counter_example) => {
+                    Err(TypeError::InvalidDependent(format!(
+                        "Dependent type invalid. Counter-example: {}", 
+                        counter_example
+                    )))
+                }
+                SMTResult::Unknown(reason) => {
+                    Err(TypeError::UnknownDependent(format!(
+                        "Could not verify dependent type: {}", 
+                        reason
+                    )))
+                }
+            }
+        }
+        
+        // Enhanced subtyping with SMT solver
+        func is_subtype(&self, sub: &Type, sup: &Type) -> bool {
+            match (sub, sup) {
+                // Refinement type subtyping
+                (Type::Refinement(r1), Type::Refinement(r2)) => {
+                    let mut solver = SMTSolver::new();
+                    
+                    // Check that base types are compatible
+                    if !self.is_subtype(&r1.base, &r2.base) {
+                        return false;
+                    }
+                    
+                    // Check that r1's predicate implies r2's predicate
+                    let implication = Expression::Binary(
+                        Box::new(r1.predicate.clone()),
+                        BinaryOp::Implies,
+                        Box::new(r2.predicate.clone())
+                    );
+                    
+                    matches!(solver.check_refinement(&r1.base, &implication), SMTResult::Valid)
+                }
+                
+                // Dependent type subtyping
+                (Type::Dependent(d1), Type::Dependent(d2)) => {
+                    let mut solver = SMTSolver::new();
+                    
+                    // Check that parameters are compatible
+                    if d1.params.len() != d2.params.len() {
+                        return false;
+                    }
+                    
+                    for ((n1, t1), (n2, t2)) in d1.params.iter().zip(d2.params.iter()) {
+                        if !self.is_subtype(t1, t2) {
+                            return false;
+                        }
+                    }
+                    
+                    // Check that d1's refinement implies d2's refinement
+                    let implication = Expression::Binary(
+                        Box::new(d1.refinement.clone()),
+                        BinaryOp::Implies,
+                        Box::new(d2.refinement.clone())
+                    );
+                    
+                    matches!(solver.check_dependent(&d1.params, &implication), SMTResult::Valid)
+                }
+                
+                _ => self.basic_subtype(sub, sup)
+            }
+        }
+
+        // Core type checking for advanced features
+        func check_type(&mut self, ty: &TypeExpr) -> Result<Type> {
+            match ty {
+                TypeExpr::Linear(inner) => self.check_linear_type(inner),
+                TypeExpr::Dependent(params, ref_expr) => self.check_dependent_type(params, ref_expr),
+                TypeExpr::Refinement(base, pred) => self.check_refinement_type(base, pred),
+                TypeExpr::Effect(name, ops) => self.check_effect_type(name, ops),
+                _ => self.check_basic_type(ty)
+            }
+        }
+
+        func check_linear_type(&mut self, inner: &TypeExpr) -> Result<Type> {
+            let inner_type = self.check_type(inner)?;
+            Ok(Type::Linear(LinearType {
+                name: "".to_string(),
+                inner: Box::new(inner_type),
+                operations: HashMap::new(),
+                destructor: None
+            }))
+        }
+
+        func check_effect_type(&mut self, name: &str, ops: &HashMap<String, EffectOp>) -> Result<Type> {
+            let mut operations = HashMap::new();
+            for (op_name, op) in ops {
+                let mut params = Vector::new();
+                for param in &op.params {
+                    params.push(self.check_type(&param.type_annotation)?);
+                }
+                
+                let return_type = self.check_type(&op.return_type)?;
+                operations.insert(op_name.clone(), EffectOperation {
+                    params,
+                    return_type: Box::new(return_type),
+                    constraints: Vector::new()
+                });
+            }
+            
+            Ok(Type::Effect(EffectType {
+                name: name.to_string(),
+                operations,
+                handlers: Vector::new()
+            }))
+        }
+
+        // Effect tracking
+        func check_effects(&mut self, expr: &Expression) -> Result<EffectSet> {
+            match expr {
+                Expression::EffectOp(effect, _) => {
+                    if !self.env.has_effect(effect) {
+                        return Err(TypeError::UndeclaredEffect(effect.clone()));
+                    }
+                    let mut effects = HashSet::new();
+                    effects.insert(effect.clone());
+                    Ok(EffectSet { effects, is_pure: false })
+                }
+                
+                Expression::Call(func, _) => {
+                    let func_type = self.check_expression(func)?;
+                    match func_type {
+                        Type::Function(f) => Ok(f.effects),
+                        _ => Err(TypeError::NotCallable)
+                    }
+                }
+                
+                Expression::Binary(left, _, right) => {
+                    let left_effects = self.check_effects(left)?;
+                    let right_effects = self.check_effects(right)?;
+                    let mut effects = left_effects.effects;
+                    effects.extend(right_effects.effects);
+                    Ok(EffectSet { effects, is_pure: false })
+                }
+                
+                _ => Ok(EffectSet {
+                    effects: HashSet::new(),
+                    is_pure: true
+                })
+            }
+        }
+        
+        // Linear type checking
+        func check_linear(&mut self, expr: &Expression) -> Result<()> {
+            match expr {
+                Expression::Variable(name) => {
+                    if let Some(Type::Linear(_)) = self.env.lookup_variable(name) {
+                        if self.consumed_variables.contains(name) {
+                            return Err(TypeError::LinearVariableAlreadyConsumed(name.clone()));
+                        }
+                        self.consumed_variables.insert(name.clone());
+                    }
+                    Ok(())
+                }
+                
+                Expression::Call(func, args) => {
+                    self.check_linear(func)?;
+                    for arg in args {
+                        self.check_linear(arg)?;
+                    }
+                    Ok(())
+                }
+                
+                Expression::Binary(left, _, right) => {
+                    self.check_linear(left)?;
+                    self.check_linear(right)?;
+                    Ok(())
+                }
+                
+                _ => Ok(())
+            }
+        }
+        
+        // Helper function to check if a type is linear
+        func is_linear_type(&self, ty: &Type) -> bool {
+            match ty {
+                Type::Linear(_) => true,
+                Type::Array(inner) => self.is_linear_type(inner),
+                Type::Option(inner) => self.is_linear_type(inner),
+                Type::Result(ok, err) => self.is_linear_type(ok) || self.is_linear_type(err),
+                _ => false
+            }
+        }
+        
+        // Helper function to check if a type has effects
+        func has_effects(&self, ty: &Type) -> bool {
+            match ty {
+                Type::Function(f) => !f.effects.is_pure,
+                Type::Effect(_) => true,
+                Type::Array(inner) => self.has_effects(inner),
+                Type::Option(inner) => self.has_effects(inner),
+                Type::Result(ok, err) => self.has_effects(ok) || self.has_effects(err),
+                _ => false
+            }
+        }
+
         func type_matches(&self, expected: &Type, found: &Type) -> bool {
             match (expected, found) {
                 (Type::Any, _) | (_, Type::Any) => true,
