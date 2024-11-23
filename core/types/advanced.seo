@@ -1,0 +1,61 @@
+// Advanced Type System Implementation for AI Operations
+module Core::Types::Advanced {
+    use Core::Types::*
+    use Core::AI::*
+    use std::collections::*
+
+    // AI-specific type definitions
+    type TensorType {
+        shape: Vector<usize>,
+        dtype: DataType,
+        device: DeviceType
+    }
+
+    type ModelType {
+        architecture: string,
+        parameters: HashMap<string, TensorType>,
+        capabilities: Vector<AICapability>
+    }
+
+    type EffectType {
+        // Core effects
+        IO,
+        Network,
+        State(Type),
+        
+        // AI-specific effects
+        Inference,
+        Training,
+        DataLoad,
+        
+        // Composition
+        Sequence(Vector<EffectType>),
+        Parallel(Vector<EffectType>)
+    }
+
+    // Type inference for AI operations
+    impl TensorType {
+        func infer_broadcast(&self, other: &TensorType) -> Result<TensorType, TypeError> {
+            // Implement broadcasting rules for tensor operations
+        }
+        
+        func infer_operation(&self, op: Operation, other: &TensorType) -> Result<TensorType, TypeError> {
+            // Type inference for tensor operations
+        }
+    }
+
+    // Effect tracking for AI operations
+    impl EffectType {
+        func compose(&self, other: &EffectType) -> EffectType {
+            match (self, other) {
+                (EffectType::Sequence(s1), EffectType::Sequence(s2)) => {
+                    EffectType::Sequence([s1, s2].concat())
+                },
+                (EffectType::Parallel(p1), EffectType::Parallel(p2)) => {
+                    EffectType::Parallel([p1, p2].concat())
+                },
+                _ => EffectType::Sequence(vec![self.clone(), other.clone()])
+            }
+        }
+    }
+}

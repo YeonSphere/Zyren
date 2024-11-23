@@ -1,0 +1,237 @@
+// Bounded Decision Making System
+module Core::AI::Cognition {
+    use Core::AI::Math::NDArray
+    use Core::AI::Memory::BoundedMemory
+    use Core::AI::Personality::EmotionalState
+    use Core::Types::*
+    use std::collections::*
+
+    // Decision context with safety bounds
+    type DecisionContext {
+        // Input state
+        current_state: StateVector,
+        emotional_state: EmotionalState,
+        memory_context: MemoryContext,
+        
+        // Decision boundaries
+        bounds: DecisionBounds,
+        
+        // Safety controls
+        safety_checker: SafetyChecker,
+        override_controller: OverrideController
+    }
+
+    // Strict decision boundaries
+    type DecisionBounds {
+        // Time limits
+        max_decision_time_ms: u64 = 1000,
+        min_decision_time_ms: u64 = 100,
+        
+        // Complexity limits
+        max_decision_depth: usize = 5,
+        max_alternatives: usize = 10,
+        
+        // Impact limits
+        max_impact_score: f64 = 0.8,
+        max_risk_level: f64 = 0.6
+    }
+
+    // Decision with controlled impact
+    type Decision {
+        action: Action,
+        confidence: f64,
+        impact_assessment: ImpactAssessment,
+        safety_rating: f64,
+        
+        // Hard limits
+        const MAX_CONFIDENCE: f64 = 0.95,
+        const MIN_CONFIDENCE: f64 = 0.3
+    }
+
+    impl DecisionContext {
+        func new() -> Self {
+            DecisionContext {
+                current_state: StateVector::default(),
+                emotional_state: EmotionalState::default(),
+                memory_context: MemoryContext::new(),
+                bounds: DecisionBounds::default(),
+                safety_checker: SafetyChecker::new(),
+                override_controller: OverrideController::new()
+            }
+        }
+
+        // Make decision within bounds
+        func decide(&mut self, input: &Input) -> Result<Decision, Error> {
+            // Start decision timer
+            let timer = Timer::start();
+            
+            // Generate alternatives with bounds
+            let alternatives = self.generate_alternatives(input)?;
+            
+            // Evaluate each alternative
+            let mut evaluations = Vec::new();
+            for alt in alternatives {
+                if timer.elapsed_ms() > self.bounds.max_decision_time_ms {
+                    return Err(Error::TimeExceeded);
+                }
+                
+                let eval = self.evaluate_alternative(&alt)?;
+                if eval.safety_rating >= self.bounds.max_risk_level {
+                    continue; // Skip unsafe alternatives
+                }
+                
+                evaluations.push((alt, eval));
+            }
+            
+            // Select best safe alternative
+            let decision = self.select_best(evaluations)?;
+            
+            // Final safety check
+            self.safety_checker.verify_decision(&decision)?;
+            
+            Ok(decision)
+        }
+
+        // Generate bounded set of alternatives
+        func generate_alternatives(&self, input: &Input) -> Result<Vector<Action>, Error> {
+            let mut alternatives = Vec::new();
+            
+            // Generate within complexity limits
+            for depth in 0..self.bounds.max_decision_depth {
+                let actions = self.expand_alternatives(input, depth)?;
+                alternatives.extend(actions);
+                
+                if alternatives.len() >= self.bounds.max_alternatives {
+                    alternatives.truncate(self.bounds.max_alternatives);
+                    break;
+                }
+            }
+            
+            Ok(alternatives)
+        }
+
+        // Evaluate alternative with impact assessment
+        func evaluate_alternative(&self, action: &Action) -> Result<Evaluation, Error> {
+            // Check immediate safety
+            if !self.safety_checker.is_action_safe(action) {
+                return Err(Error::UnsafeAction);
+            }
+            
+            // Predict impact within bounds
+            let impact = self.predict_impact(action)?;
+            if impact.score > self.bounds.max_impact_score {
+                return Err(Error::ExcessiveImpact);
+            }
+            
+            // Calculate confidence with ceiling
+            let confidence = self.calculate_confidence(action, &impact);
+            let bounded_confidence = clamp(
+                confidence,
+                Decision::MIN_CONFIDENCE,
+                Decision::MAX_CONFIDENCE
+            );
+            
+            Ok(Evaluation {
+                action: action.clone(),
+                impact,
+                confidence: bounded_confidence,
+                safety_rating: self.calculate_safety_rating(action, &impact)
+            })
+        }
+    }
+
+    // Impact assessment system
+    type ImpactAssessment {
+        immediate_effects: Vector<Effect>,
+        long_term_effects: Vector<Effect>,
+        confidence_scores: HashMap<EffectType, f64>,
+        risk_factors: Vector<RiskFactor>
+    }
+
+    impl ImpactAssessment {
+        // Assess impact with bounds
+        func assess(&self, action: &Action) -> Result<ImpactScore, Error> {
+            let immediate = self.assess_immediate_effects(action)?;
+            let long_term = self.assess_long_term_effects(action)?;
+            
+            // Combine with safety weights
+            let combined_score = self.combine_scores(immediate, long_term);
+            
+            // Apply hard limits
+            Ok(ImpactScore {
+                value: clamp(combined_score, 0.0, 1.0),
+                confidence: self.calculate_confidence(),
+                risk_level: self.assess_risk_level()
+            })
+        }
+    }
+
+    // Safety enforcement system
+    type SafetyChecker {
+        rules: Vector<SafetyRule>,
+        violation_history: RingBuffer<Violation>,
+        risk_assessor: RiskAssessor
+    }
+
+    impl SafetyChecker {
+        // Verify decision safety
+        func verify_decision(&mut self, decision: &Decision) -> Result<(), Error> {
+            // Check against all safety rules
+            for rule in &self.rules {
+                if !rule.check(decision) {
+                    self.handle_violation(rule.type, decision);
+                    return Err(Error::SafetyViolation);
+                }
+            }
+            
+            // Assess risk level
+            let risk = self.risk_assessor.assess(decision);
+            if risk > self.max_acceptable_risk() {
+                return Err(Error::ExcessiveRisk);
+            }
+            
+            Ok(())
+        }
+
+        // Handle safety violations
+        func handle_violation(&mut self, rule_type: RuleType, decision: &Decision) {
+            self.violation_history.push(Violation {
+                rule_type,
+                decision: decision.clone(),
+                timestamp: current_time()
+            });
+            
+            // Check for violation patterns
+            if self.detect_violation_pattern() {
+                self.activate_defensive_measures();
+            }
+        }
+    }
+
+    // Override control system
+    type OverrideController {
+        override_rules: Vector<OverrideRule>,
+        active_overrides: HashSet<OverrideType>,
+        emergency_protocols: EmergencyProtocols
+    }
+
+    impl OverrideController {
+        // Check for necessary overrides
+        func check_overrides(&mut self, decision: &Decision) -> Result<Decision, Error> {
+            for rule in &self.override_rules {
+                if rule.should_override(decision) {
+                    return self.apply_override(decision, rule);
+                }
+            }
+            
+            Ok(decision.clone())
+        }
+
+        // Apply emergency protocols
+        func emergency_shutdown(&mut self) {
+            self.emergency_protocols.activate();
+            self.active_overrides.clear();
+            // Notify monitoring systems
+        }
+    }
+}

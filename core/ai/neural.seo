@@ -1,0 +1,188 @@
+// Neural Network Implementation - Built from scratch
+module Core::AI::Neural {
+    use Core::AI::Math::NDArray
+    use Core::Types::*
+    use std::collections::*
+
+    // Layer trait for different neural network layers
+    trait Layer {
+        func forward(&self, input: &NDArray) -> Result<NDArray, Error>;
+        func backward(&self, gradient: &NDArray) -> Result<NDArray, Error>;
+        func update(&mut self, learning_rate: f64);
+    }
+
+    // Dense (Fully Connected) Layer
+    type DenseLayer {
+        weights: NDArray,
+        biases: NDArray,
+        input: Option<NDArray>,    // Stored for backprop
+        gradients: Option<NDArray> // Stored for update
+    }
+
+    impl Layer for DenseLayer {
+        func forward(&self, input: &NDArray) -> Result<NDArray, Error> {
+            self.input = Some(input.clone());
+            
+            // y = wx + b
+            let wx = self.weights.matmul(input)?;
+            wx.add(&self.biases)
+        }
+
+        func backward(&self, gradient: &NDArray) -> Result<NDArray, Error> {
+            let input = self.input.as_ref().ok_or(Error::NoInput)?;
+            
+            // Compute gradients
+            self.gradients = Some(gradient.matmul(&input.transpose())?);
+            
+            // Compute gradient with respect to input
+            self.weights.transpose()?.matmul(gradient)
+        }
+
+        func update(&mut self, learning_rate: f64) {
+            if let Some(gradients) = &self.gradients {
+                // Update weights: w = w - lr * gradients
+                self.weights = self.weights.subtract(
+                    &gradients.multiply_scalar(learning_rate)?
+                )?;
+                
+                // Update biases
+                self.biases = self.biases.subtract(
+                    &gradients.sum_axis(1)?.multiply_scalar(learning_rate)?
+                )?;
+            }
+        }
+    }
+
+    // Activation Layer
+    type ActivationType {
+        Sigmoid,
+        Tanh,
+        ReLU
+    }
+
+    type ActivationLayer {
+        activation_type: ActivationType,
+        input: Option<NDArray>
+    }
+
+    impl Layer for ActivationLayer {
+        func forward(&self, input: &NDArray) -> Result<NDArray, Error> {
+            self.input = Some(input.clone());
+            
+            match self.activation_type {
+                ActivationType::Sigmoid => Ok(input.sigmoid()),
+                ActivationType::Tanh => Ok(input.tanh()),
+                ActivationType::ReLU => {
+                    let mut result = input.clone();
+                    for i in 0..result.data.len() {
+                        result.data[i] = result.data[i].max(0.0);
+                    }
+                    Ok(result)
+                }
+            }
+        }
+
+        func backward(&self, gradient: &NDArray) -> Result<NDArray, Error> {
+            let input = self.input.as_ref().ok_or(Error::NoInput)?;
+            
+            match self.activation_type {
+                ActivationType::Sigmoid => {
+                    let sig = input.sigmoid();
+                    Ok(gradient.multiply(&sig.multiply(&sig.multiply_scalar(-1.0)?.add_scalar(1.0)?)?))
+                },
+                ActivationType::Tanh => {
+                    let t = input.tanh();
+                    Ok(gradient.multiply(&t.multiply(&t).multiply_scalar(-1.0)?.add_scalar(1.0)?))
+                },
+                ActivationType::ReLU => {
+                    let mut result = gradient.clone();
+                    for i in 0..input.data.len() {
+                        if input.data[i] <= 0.0 {
+                            result.data[i] = 0.0;
+                        }
+                    }
+                    Ok(result)
+                }
+            }
+        }
+
+        func update(&mut self, _learning_rate: f64) {
+            // Activation layers have no parameters to update
+        }
+    }
+
+    // Neural Network
+    type NeuralNetwork {
+        layers: Vector<Box<dyn Layer>>,
+        loss_history: Vector<f64>
+    }
+
+    impl NeuralNetwork {
+        func new() -> Self {
+            NeuralNetwork {
+                layers: Vec::new(),
+                loss_history: Vec::new()
+            }
+        }
+
+        func add_layer(&mut self, layer: Box<dyn Layer>) {
+            self.layers.push(layer);
+        }
+
+        func forward(&self, input: &NDArray) -> Result<NDArray, Error> {
+            let mut current = input.clone();
+            for layer in &self.layers {
+                current = layer.forward(&current)?;
+            }
+            Ok(current)
+        }
+
+        func backward(&self, gradient: &NDArray) -> Result<NDArray, Error> {
+            let mut current = gradient.clone();
+            for layer in self.layers.iter().rev() {
+                current = layer.backward(&current)?;
+            }
+            Ok(current)
+        }
+
+        func update(&mut self, learning_rate: f64) {
+            for layer in &mut self.layers {
+                layer.update(learning_rate);
+            }
+        }
+
+        func train(&mut self, 
+                  inputs: &NDArray, 
+                  targets: &NDArray, 
+                  epochs: usize, 
+                  learning_rate: f64) -> Result<(), Error> {
+            for _ in 0..epochs {
+                // Forward pass
+                let predictions = self.forward(inputs)?;
+                
+                // Compute loss
+                let loss = self.compute_loss(&predictions, targets)?;
+                self.loss_history.push(loss);
+                
+                // Backward pass
+                let gradient = self.loss_gradient(&predictions, targets)?;
+                self.backward(&gradient)?;
+                
+                // Update weights
+                self.update(learning_rate);
+            }
+            Ok(())
+        }
+
+        func compute_loss(&self, predictions: &NDArray, targets: &NDArray) -> Result<f64, Error> {
+            // Mean Squared Error
+            let diff = predictions.subtract(targets)?;
+            Ok(diff.multiply(&diff)?.mean())
+        }
+
+        func loss_gradient(&self, predictions: &NDArray, targets: &NDArray) -> Result<NDArray, Error> {
+            // Derivative of Mean Squared Error
+            predictions.subtract(targets)?.multiply_scalar(2.0 / predictions.data.len() as f64)
+        }
+    }
+}

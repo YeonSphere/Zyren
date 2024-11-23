@@ -1,0 +1,221 @@
+// Controlled Emotional Intelligence System
+module Core::AI::Personality {
+    use Core::AI::Math::NDArray
+    use Core::Types::*
+    use std::collections::*
+
+    // Strictly bounded emotional state
+    type EmotionalState {
+        // All values normalized between 0.0 and 1.0
+        valence: f64,      // Positive/negative spectrum
+        arousal: f64,      // Energy/activation level
+        dominance: f64,    // Control/influence level
+        
+        // Hard limits
+        const MAX_VALENCE: f64 = 0.8,
+        const MIN_VALENCE: f64 = 0.2,
+        const MAX_AROUSAL: f64 = 0.7,
+        const MAX_DOMINANCE: f64 = 0.6
+    }
+
+    // Response modulation system
+    type ResponseModulator {
+        current_state: EmotionalState,
+        context_memory: RingBuffer<Context>,
+        response_templates: HashMap<ResponseType, Vector<Template>>,
+        
+        // Control boundaries
+        bounds: BoundaryConfig,
+        safety_checker: SafetyChecker
+    }
+
+    // Strict boundary configuration
+    type BoundaryConfig {
+        // Prevent rapid emotional changes
+        max_state_delta: f64 = 0.1,
+        
+        // Limit response intensity
+        max_response_intensity: f64 = 0.7,
+        
+        // Maximum context retention
+        max_context_memory: usize = 100,
+        
+        // Response rate limiting
+        min_response_delay_ms: u64 = 500
+    }
+
+    impl ResponseModulator {
+        func new() -> Self {
+            ResponseModulator {
+                current_state: EmotionalState::default(),
+                context_memory: RingBuffer::new(BoundaryConfig::max_context_memory),
+                response_templates: load_safe_templates(),
+                bounds: BoundaryConfig::default(),
+                safety_checker: SafetyChecker::new()
+            }
+        }
+
+        // Generate human-like response within bounds
+        func generate_response(&mut self, input: &str) -> Result<Response, Error> {
+            // Analyze input within safety bounds
+            let analysis = self.analyze_input(input)?;
+            
+            // Update emotional state with strict limits
+            self.update_state_safely(analysis)?;
+            
+            // Generate appropriate response
+            let response = self.select_response_template()?;
+            
+            // Apply emotional modulation within bounds
+            let modulated = self.modulate_safely(response)?;
+            
+            // Final safety check
+            self.safety_checker.verify(modulated)
+        }
+
+        // Safely update emotional state
+        func update_state_safely(&mut self, analysis: Analysis) -> Result<(), Error> {
+            let proposed_changes = calculate_state_changes(analysis);
+            
+            // Enforce maximum change rate
+            let bounded_changes = limit_changes(
+                proposed_changes,
+                self.bounds.max_state_delta
+            );
+            
+            // Apply changes while respecting hard limits
+            self.current_state.valence = clamp(
+                self.current_state.valence + bounded_changes.valence,
+                EmotionalState::MIN_VALENCE,
+                EmotionalState::MAX_VALENCE
+            );
+            
+            self.current_state.arousal = clamp(
+                self.current_state.arousal + bounded_changes.arousal,
+                0.0,
+                EmotionalState::MAX_AROUSAL
+            );
+            
+            self.current_state.dominance = clamp(
+                self.current_state.dominance + bounded_changes.dominance,
+                0.0,
+                EmotionalState::MAX_DOMINANCE
+            );
+            
+            Ok(())
+        }
+    }
+
+    // Safety enforcement system
+    type SafetyChecker {
+        rules: Vector<SafetyRule>,
+        violation_counter: HashMap<RuleType, usize>,
+        emergency_shutdown: bool
+    }
+
+    impl SafetyChecker {
+        // Verify response safety
+        func verify(&mut self, response: Response) -> Result<Response, Error> {
+            // Check against all safety rules
+            for rule in &self.rules {
+                if !rule.check(&response) {
+                    self.handle_violation(rule.type);
+                    return Err(Error::SafetyViolation);
+                }
+            }
+            
+            // Ensure response is within bounds
+            if !self.check_response_bounds(&response) {
+                return self.sanitize_response(response);
+            }
+            
+            Ok(response)
+        }
+
+        // Handle safety violations
+        func handle_violation(&mut self, rule_type: RuleType) {
+            let count = self.violation_counter
+                .entry(rule_type)
+                .or_insert(0);
+            *count += 1;
+            
+            // Check for violation threshold
+            if *count > 3 {
+                self.emergency_shutdown = true;
+            }
+        }
+    }
+
+    // Personality expression system
+    type PersonalityCore {
+        traits: HashMap<Trait, f64>,
+        expression_limits: ExpressionLimits,
+        behavior_controller: BehaviorController
+    }
+
+    impl PersonalityCore {
+        func new() -> Self {
+            PersonalityCore {
+                traits: load_balanced_traits(),
+                expression_limits: ExpressionLimits::default(),
+                behavior_controller: BehaviorController::new()
+            }
+        }
+
+        // Express personality within bounds
+        func express(&self, context: &Context) -> Result<Expression, Error> {
+            // Get relevant traits for context
+            let active_traits = self.select_relevant_traits(context);
+            
+            // Calculate expression within limits
+            let raw_expression = self.calculate_expression(active_traits);
+            
+            // Apply safety bounds
+            self.behavior_controller.bound_expression(raw_expression)
+        }
+
+        // Ensure traits stay within safe limits
+        func adjust_traits(&mut self) {
+            for (trait, value) in self.traits.iter_mut() {
+                *value = clamp(
+                    *value,
+                    self.expression_limits.min_trait_value,
+                    self.expression_limits.max_trait_value
+                );
+            }
+        }
+    }
+
+    // Behavior control system
+    type BehaviorController {
+        rules: Vector<BehaviorRule>,
+        limits: BehaviorLimits,
+        override_triggers: HashSet<Trigger>
+    }
+
+    impl BehaviorController {
+        // Enforce behavioral boundaries
+        func bound_expression(&self, expr: Expression) -> Result<Expression, Error> {
+            // Check against behavior rules
+            for rule in &self.rules {
+                if rule.is_violated(&expr) {
+                    return self.apply_correction(expr, rule);
+                }
+            }
+            
+            // Ensure expression is within limits
+            if !self.check_limits(&expr) {
+                return self.normalize_expression(expr);
+            }
+            
+            Ok(expr)
+        }
+
+        // Emergency override for unsafe behavior
+        func emergency_override(&mut self, trigger: Trigger) {
+            if self.override_triggers.contains(&trigger) {
+                self.activate_safe_mode();
+            }
+        }
+    }
+}
