@@ -14,6 +14,42 @@ Visit [yeonsphere.github.io/seoggi](https://yeonsphere.github.io/seoggi.html) fo
 - Best Practices
 - Contributing Guidelines
 
+## Installation
+
+### Quick Install
+
+For a standard installation to `/usr/local`:
+
+```bash
+sudo ./install.sh
+```
+
+For installation to a custom location:
+
+```bash
+./install.sh --prefix=/path/to/install
+```
+
+### Build from Source
+
+1. Clone the repository:
+```bash
+git clone https://github.com/yeonsphere/seoggi.git
+cd seoggi
+```
+
+2. Build and install:
+```bash
+./build.seo
+sudo ./install.sh
+```
+
+### Requirements
+
+- LLVM 15.0.0 or later
+- Wasmtime 1.0.0 or later
+- QuickJS 0.1.0 or later
+
 ## Quick Start
 
 ```bash

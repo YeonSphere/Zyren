@@ -1,0 +1,216 @@
+// YeonSphere Universal Open Source License (YUOSL)
+// Copyright (c) 2024 Jeremy Matlock (@daedaevibin)
+// All rights reserved.
+// See LICENSE for full terms.
+
+// Seoggi Command Line Tool (seo)
+// This tool provides a command-line interface for the Seoggi programming language
+
+import { Env } from "core/env"
+import { File } from "core/io/file"
+import { Path } from "core/io/path"
+import { Process } from "core/process"
+import { String } from "core/string"
+import { Version } from "core/version"
+import { Build } from "tools/build"
+import { Compiler } from "tools/compiler"
+import { Runtime } from "tools/runtime"
+import { REPL } from "tools/repl"
+import { TestRunner } from "tools/test_runner"
+
+const VERSION = "0.1.0"
+const COPYRIGHT = "Copyright (c) 2024 Jeremy Matlock (@daedaevibin)"
+const LICENSE = "YeonSphere Universal Open Source License (YUOSL)"
+
+// Command line tool for Seoggi
+struct Seo {
+    root_dir: String
+    
+    // Constructor
+    new() -> Seo {
+        let root = Env.get("SEOGGI_ROOT")
+        if root == nil {
+            Process.exit(1, "Error: SEOGGI_ROOT environment variable not set")
+        }
+        Seo { root_dir: root }
+    }
+    
+    // Find a Seoggi source file
+    fn find_file(self, name: String) -> Option<String> {
+        // Check direct path
+        if File.exists(name) {
+            return Some(name)
+        }
+        
+        // Check with .seo extension
+        let with_ext = name + ".seo"
+        if File.exists(with_ext) {
+            return Some(with_ext)
+        }
+        
+        // Check examples directory
+        let example = Path.join(self.root_dir, "examples", name)
+        if File.exists(example) {
+            return Some(example)
+        }
+        
+        let example_ext = example + ".seo"
+        if File.exists(example_ext) {
+            return Some(example_ext)
+        }
+        
+        None
+    }
+    
+    // Show version information
+    fn show_version(self) {
+        println("seo version {}", VERSION)
+        println("Seoggi Command Line Tool")
+        println(COPYRIGHT)
+        println("Licensed under {}", LICENSE)
+    }
+    
+    // Show usage information
+    fn show_usage(self) {
+        println("Seoggi Programming Language")
+        println("Usage: seo <command> [arguments]")
+        println("")
+        println("Commands:")
+        println("  build <target>  Build a Seoggi project")
+        println("  compile <file>  Compile a Seoggi source file")
+        println("  exec <file>     Execute a Seoggi program")
+        println("  run [file]      Run a program or start REPL mode")
+        println("  test [path]     Run tests in the specified path")
+        println("  version         Show version information")
+        println("  help            Show this help message")
+        println("")
+        println("Examples:")
+        println("  seo build .         # Build current project")
+        println("  seo compile foo.seo # Compile foo.seo to executable")
+        println("  seo exec hello.seo  # Run hello.seo")
+        println("  seo run             # Start REPL")
+        println("  seo run app.seo     # Run app.seo")
+        println("  seo test            # Run all tests")
+        println("  seo test core/      # Run tests in core/")
+        println("  seo version         # Show version")
+        println("  seo help            # Show help")
+    }
+    
+    // Build a project
+    fn build_project(self, target: String) -> Result<(), String> {
+        let builder = Build::new(target)?
+        builder.build()
+    }
+    
+    // Compile a single file
+    fn compile_file(self, file: String) -> Result<(), String> {
+        let source = self.find_file(file)
+            .unwrap_or_else(|| Process.exit(1, "Error: Could not find Seoggi file: {}", file))
+            
+        let output = Path.with_extension(source, "exe")
+        println("Compiling {} -> {}", source, output)
+        
+        // Use the Seoggi compiler directly
+        let compiler = Compiler::new()
+        compiler.compile_file(source, output)
+    }
+    
+    // Execute a program
+    fn exec_program(self, file: String) -> Result<(), String> {
+        let source = self.find_file(file)
+            .unwrap_or_else(|| Process.exit(1, "Error: Could not find Seoggi file: {}", file))
+            
+        // Use the Seoggi runtime directly
+        let runtime = Runtime::new()
+        runtime.execute_file(source)
+    }
+    
+    // Run REPL or file
+    fn run(self, file: Option<String>) -> Result<(), String> {
+        match file {
+            Some(f) => self.exec_program(f),
+            None => {
+                println("Starting Seoggi REPL...")
+                let repl = REPL::new()
+                repl.run()
+            }
+        }
+    }
+    
+    // Run tests
+    fn run_tests(self, path: Option<String>) -> Result<(), String> {
+        let test_path = path.unwrap_or(".")
+        if !File.is_dir(test_path) {
+            return Err("Error: Test path does not exist: {}", test_path)
+        }
+        
+        let test_runner = TestRunner::new()
+        test_runner.run_dir(test_path)
+    }
+    
+    // Main entry point
+    fn main(self, args: [String]) {
+        if args.len() < 2 {
+            self.show_usage()
+            Process.exit(1)
+        }
+        
+        match args[1] {
+            "build" => {
+                let target = if args.len() > 2 { args[2] } else { "." }
+                if let Err(e) = self.build_project(target) {
+                    Process.exit(1, "Build failed: {}", e)
+                }
+            }
+            
+            "compile" => {
+                if args.len() < 3 {
+                    Process.exit(1, "Error: No file specified\nUsage: seo compile <file>")
+                }
+                if let Err(e) = self.compile_file(args[2]) {
+                    Process.exit(1, "Compilation failed: {}", e)
+                }
+            }
+            
+            "exec" => {
+                if args.len() < 3 {
+                    Process.exit(1, "Error: No file specified\nUsage: seo exec <file>")
+                }
+                if let Err(e) = self.exec_program(args[2]) {
+                    Process.exit(1, "Execution failed: {}", e)
+                }
+            }
+            
+            "run" => {
+                let file = if args.len() > 2 { Some(args[2]) } else { None }
+                if let Err(e) = self.run(file) {
+                    Process.exit(1, "Run failed: {}", e)
+                }
+            }
+            
+            "test" => {
+                let path = if args.len() > 2 { Some(args[2]) } else { None }
+                if let Err(e) = self.run_tests(path) {
+                    Process.exit(1, "Tests failed: {}", e)
+                }
+            }
+            
+            "version" => self.show_version(),
+            
+            "help" => self.show_usage(),
+            
+            _ => {
+                println("Error: Unknown command '{}'", args[1])
+                println("")
+                self.show_usage()
+                Process.exit(1)
+            }
+        }
+    }
+}
+
+// Entry point
+fn main(args: [String]) {
+    let seo = Seo::new()
+    seo.main(args)
+}

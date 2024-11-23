@@ -168,21 +168,134 @@ configure_shell() {
     echo "  seo version"
 }
 
+# Dependency information with version requirements
+declare -A DEPS_INFO=(
+    ["cmake"]="3.10.0"
+    ["llvm"]="10.0.0"
+    ["z3"]="4.8.0"
+    ["python3"]="3.8.0"
+    ["git"]=""
+    ["curl"]=""
+    ["pip3"]=""
+)
+
+# Package names for different package managers
+declare -A PM_DEPS=(
+    ["apt"]="build-essential cmake llvm-dev libz3-dev libedit-dev python3 python3-pip curl wget git"
+    ["dnf"]="gcc gcc-c++ make cmake llvm-devel z3-devel libedit-devel python3 python3-pip curl wget git"
+    ["pacman"]="base-devel cmake llvm z3 libedit python python-pip curl wget git"
+    ["zypper"]="gcc gcc-c++ make cmake llvm-devel libz3-devel libedit-devel python3 python3-pip curl wget git"
+    ["brew"]="llvm z3 libedit python curl wget git"
+    ["xbps"]="base-devel cmake llvm z3 libedit python3 python3-pip curl wget git"
+    ["apk"]="build-base cmake llvm-dev z3-dev libedit-dev python3 py3-pip curl wget git"
+)
+
+# Version comparison function
+version_compare() {
+    [ -z "$1" ] || [ -z "$2" ] || printf '%s\n%s\n' "$2" "$1" | sort -C -V
+}
+
+# Get version of installed package
+get_version() {
+    local cmd="$1"
+    case "$cmd" in
+        cmake) cmake --version 2>/dev/null | head -n1 | awk '{print $3}' ;;
+        python3) python3 -c 'import sys; print(".".join(map(str, sys.version_info[:3])))' 2>/dev/null ;;
+        llvm) llvm-config --version 2>/dev/null || clang --version 2>/dev/null | head -n1 | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' ;;
+        z3) z3 --version 2>/dev/null | cut -d' ' -f2 ;;
+        *) command -v "$cmd" >/dev/null 2>&1 && echo "installed" ;;
+    esac
+}
+
+# Check for missing dependencies
+check_dependencies() {
+    info "Checking installed dependencies..."
+    local missing_deps=() outdated_deps=()
+    
+    for dep in "${!DEPS_INFO[@]}"; do
+        local required_version="${DEPS_INFO[$dep]}"
+        local installed_version=$(get_version "$dep")
+        
+        if [[ -z "$installed_version" ]]; then
+            missing_deps+=("$dep")
+            warning "$dep is not installed"
+        elif [[ -n "$required_version" ]] && ! version_compare "$installed_version" "$required_version"; then
+            outdated_deps+=("$dep")
+            warning "$dep version $installed_version is older than required $required_version"
+        else
+            success "Found $dep${installed_version:+ ($installed_version)}"
+        fi
+    done
+    
+    if [[ ${#missing_deps[@]} -eq 0 && ${#outdated_deps[@]} -eq 0 ]]; then
+        success "All dependencies satisfied!"
+        return 0
+    else
+        MISSING_DEPS=("${missing_deps[@]}")
+        return 1
+    fi
+}
+
+# Install specific dependencies
+install_specific_deps() {
+    local deps_to_install=("$@")
+    [[ ${#deps_to_install[@]} -eq 0 ]] && return 0
+    
+    info "Installing missing dependencies: ${deps_to_install[*]}"
+    local cmd
+    case "$DISTRO" in
+        "arch"|"cachyos"|"manjaro")
+            # For pacman, we need to pass packages as separate arguments
+            cmd="$PM_INSTALL ${deps_to_install[@]}"
+            ;;
+        *)
+            # For other package managers, we can pass as a space-separated string
+            cmd="$PM_INSTALL ${deps_to_install[*]}"
+            ;;
+    esac
+    
+    [[ $(id -u) -ne 0 ]] && cmd="sudo $cmd"
+    retry_command $cmd
+}
+
+# Retry command with exponential backoff
+retry_command() {
+    local max_attempts=5 timeout=1 attempt=1
+    while (( attempt <= max_attempts )); do
+        if "$@"; then return 0; fi
+        warning "Command failed. Retrying in $timeout seconds..."
+        sleep $timeout
+        attempt=$((attempt + 1))
+        timeout=$((timeout * 2))
+    done
+    error "Command failed after $max_attempts attempts."
+    return 1
+}
+
 # Check if a package is installed
 check_package() {
     local pkg="$1"
     case "$DISTRO" in
         "arch"|"cachyos"|"manjaro")
-            pacman -Qi "$pkg" &>/dev/null
+            if pacman -Qi "$pkg" >/dev/null 2>&1; then
+                return 0
+            elif pacman -Qg base-devel 2>/dev/null | grep -q "^base-devel $pkg$"; then
+                # Check if package is part of base-devel group
+                return 0
+            fi
+            return 1
             ;;
         "debian"|"ubuntu")
-            dpkg -l "$pkg" &>/dev/null
+            dpkg -l "$pkg" 2>/dev/null | grep -q "^ii"
+            return $?
             ;;
         "fedora")
-            rpm -q "$pkg" &>/dev/null
+            rpm -q "$pkg" >/dev/null 2>&1
+            return $?
             ;;
         "opensuse-leap"|"opensuse-tumbleweed")
-            rpm -q "$pkg" &>/dev/null
+            rpm -q "$pkg" >/dev/null 2>&1
+            return $?
             ;;
         *)
             return 1
@@ -190,142 +303,114 @@ check_package() {
     esac
 }
 
-# Install dependencies based on OS and distribution
-install_dependencies() {
-    case "$OS" in
-        "linux")
-            install_linux_dependencies
+# Map generic package names to distro-specific names
+map_package_name() {
+    local pkg="$1"
+    case "$DISTRO" in
+        "arch"|"cachyos"|"manjaro")
+            case "$pkg" in
+                "python3") echo "python" ;;
+                "pip3") echo "python-pip" ;;
+                "base-devel") echo "$pkg" ;;
+                *) echo "$pkg" ;;
+            esac
             ;;
-        "macos")
-            install_macos_dependencies
+        "debian"|"ubuntu")
+            case "$pkg" in
+                "llvm") echo "llvm-dev" ;;
+                "z3") echo "libz3-dev" ;;
+                "libedit") echo "libedit-dev" ;;
+                *) echo "$pkg" ;;
+            esac
             ;;
-        "windows")
-            install_windows_dependencies
+        "fedora")
+            case "$pkg" in
+                "llvm") echo "llvm-devel" ;;
+                "z3") echo "z3-devel" ;;
+                "libedit") echo "libedit-devel" ;;
+                *) echo "$pkg" ;;
+            esac
+            ;;
+        *)
+            echo "$pkg"
             ;;
     esac
 }
 
 # Install Linux dependencies
 install_linux_dependencies() {
-    local missing_pkgs=()
-    local pkg_manager
-    local install_cmd
-    local pkgs
+    local pkg_manager install_cmd pkgs update_cmd
     
     # Define package names for different distributions
     case "$DISTRO" in
         "arch"|"cachyos"|"manjaro")
             pkg_manager="pacman"
             install_cmd="pacman -S --noconfirm"
-            pkgs=(
-                "llvm"
-                "clang"
-                "z3"
-                "cmake"
-                "git"
-                "libedit"
-                "gcc"
-                "make"
-            )
+            update_cmd="pacman -Sy"
+            # Convert space-separated string to array for pacman
+            IFS=' ' read -r -a pkgs <<< "${PM_DEPS["pacman"]}"
             ;;
         "debian"|"ubuntu")
             pkg_manager="apt"
             install_cmd="apt-get install -y"
-            pkgs=(
-                "llvm"
-                "clang"
-                "z3"
-                "cmake"
-                "git"
-                "libedit-dev"
-                "gcc"
-                "make"
-            )
+            update_cmd="apt-get update"
+            IFS=' ' read -r -a pkgs <<< "${PM_DEPS["apt"]}"
             ;;
         "fedora")
             pkg_manager="dnf"
             install_cmd="dnf install -y"
-            pkgs=(
-                "llvm"
-                "clang"
-                "z3"
-                "cmake"
-                "git"
-                "libedit-devel"
-                "gcc"
-                "make"
-            )
+            update_cmd="dnf check-update"
+            IFS=' ' read -r -a pkgs <<< "${PM_DEPS["dnf"]}"
             ;;
         "opensuse-leap"|"opensuse-tumbleweed")
             pkg_manager="zypper"
             install_cmd="zypper install -y"
-            pkgs=(
-                "llvm"
-                "clang"
-                "z3"
-                "cmake"
-                "git"
-                "libedit-devel"
-                "gcc"
-                "make"
-            )
+            update_cmd="zypper refresh"
+            IFS=' ' read -r -a pkgs <<< "${PM_DEPS["zypper"]}"
             ;;
         *)
             error "Unsupported Linux distribution: $DISTRO"
             exit 1
             ;;
     esac
-    
+
     # Check for missing packages
-    info "Checking for required packages..."
+    info "Checking installed packages..."
+    local missing_pkgs=()
     for pkg in "${pkgs[@]}"; do
-        if ! check_package "$pkg"; then
-            missing_pkgs+=("$pkg")
+        local mapped_pkg=$(map_package_name "$pkg")
+        if ! check_package "$mapped_pkg"; then
+            missing_pkgs+=("$mapped_pkg")
+            warning "Package $mapped_pkg is not installed"
+        else
+            success "Package $mapped_pkg is already installed"
         fi
     done
-    
-    # Install missing packages if any
-    if [ ${#missing_pkgs[@]} -eq 0 ]; then
-        success "All required packages are already installed"
-    else
+
+    if [ ${#missing_pkgs[@]} -gt 0 ]; then
+        # Update package lists only if we need to install something
+        info "Updating package lists..."
+        if [ "$(id -u)" -eq 0 ]; then
+            retry_command $update_cmd
+        else
+            retry_command sudo $update_cmd
+        fi
+
         info "Installing missing packages: ${missing_pkgs[*]}"
-        case "$DISTRO" in
-            "arch"|"cachyos"|"manjaro")
-                sudo $install_cmd "${missing_pkgs[@]}" || error "Failed to install packages"
-                ;;
-            "debian"|"ubuntu")
-                sudo apt-get update
-                sudo $install_cmd "${missing_pkgs[@]}" || error "Failed to install packages"
-                ;;
-            "fedora")
-                sudo $install_cmd "${missing_pkgs[@]}" || error "Failed to install packages"
-                ;;
-            "opensuse-leap"|"opensuse-tumbleweed")
-                sudo $install_cmd "${missing_pkgs[@]}" || error "Failed to install packages"
-                ;;
-        esac
+        if [ "$(id -u)" -eq 0 ]; then
+            retry_command $install_cmd "${missing_pkgs[@]}" || {
+                error "Failed to install packages"
+                exit 1
+            }
+        else
+            retry_command sudo $install_cmd "${missing_pkgs[@]}" || {
+                error "Failed to install packages"
+                exit 1
+            }
+        fi
         success "Successfully installed missing packages"
-    fi
-    
-    # Verify minimum versions
-    info "Checking package versions..."
-    local cmake_version=$(cmake --version | head -n1 | cut -d' ' -f3)
-    local llvm_version=$(llvm-config --version)
-    local z3_version=$(z3 --version | cut -d' ' -f3)
-    
-    if ! printf '%s\n%s\n' "3.10" "$cmake_version" | sort -V -C; then
-        error "CMake version $cmake_version is too old. Minimum required: 3.10"
-        exit 1
-    fi
-    
-    if ! printf '%s\n%s\n' "18.1.8" "$llvm_version" | sort -V -C; then
-        error "LLVM version $llvm_version is too old. Minimum required: 18.1.8"
-        exit 1
-    fi
-    
-    if ! printf '%s\n%s\n' "4.8.0" "$z3_version" | sort -V -C; then
-        error "Z3 version $z3_version is too old. Minimum required: 4.8.0"
-        exit 1
+    else
+        success "All required packages are already installed"
     fi
 }
 
@@ -357,6 +442,229 @@ install_windows_dependencies() {
         mingw-w64-x86_64-llvm mingw-w64-x86_64-clang \
         mingw-w64-x86_64-python mingw-w64-x86_64-python-pip \
         mingw-w64-x86_64-z3 git curl pkg-config
+}
+
+# Install dependencies based on OS and distribution
+install_dependencies() {
+    case "$OS" in
+        "linux")
+            install_linux_dependencies
+            ;;
+        "macos")
+            install_macos_dependencies
+            ;;
+        "windows")
+            install_windows_dependencies
+            ;;
+        *)
+            error "Unsupported operating system: $OS"
+            exit 1
+            ;;
+    esac
+}
+
+# Build Seoggi
+build_seoggi() {
+    local build_dir="$1"
+    local src_dir="$2"
+    info "Building Seoggi..."
+    
+    # Create build directory structure
+    mkdir -p "$build_dir"/{core,std,bin}
+    
+    # First, copy the bootstrap compiler
+    info "Setting up bootstrap compiler..."
+    cp "$src_dir/bootstrap/seoggi_bootstrap" "$build_dir/bin/seo"
+    chmod +x "$build_dir/bin/seo"
+    
+    # Build core components
+    info "Building core components..."
+    local core_files=(
+        "base.seo"
+        "kernel.seo"
+        "runtime.seo"
+        "types.seo"
+        "ipc.seo"
+        "sync.seo"
+        "universal.seo"
+        "syntax.seo"
+    )
+    
+    for file in "${core_files[@]}"; do
+        if [[ -f "$src_dir/core/$file" ]]; then
+            info "Building $file..."
+            "$build_dir/bin/seo" "$src_dir/core/$file" || {
+                error "Failed to build $file"
+                return 1
+            }
+        else
+            warning "Core file $file not found, skipping..."
+        fi
+    done
+    
+    # Build standard library
+    if [[ -f "$src_dir/std/prelude.seo" ]]; then
+        info "Building standard library..."
+        "$build_dir/bin/seo" "$src_dir/std/prelude.seo" || {
+            error "Failed to build standard library"
+            return 1
+        }
+    fi
+    
+    # Build core modules
+    info "Building core modules..."
+    local core_modules=(
+        "ai"
+        "compiler"
+        "parser"
+        "runtime"
+        "system"
+        "types"
+    )
+    
+    for module in "${core_modules[@]}"; do
+        if [[ -d "$src_dir/core/$module" ]]; then
+            find "$src_dir/core/$module" -name "*.seo" -type f | while read -r file; do
+                info "Building module file: $(basename "$file")..."
+                "$build_dir/bin/seo" "$file" || {
+                    error "Failed to build module file: $file"
+                    return 1
+                }
+            done
+        fi
+    done
+    
+    success "Build completed successfully"
+    return 0
+}
+
+# Install Seoggi components
+install_seoggi_components() {
+    local install_dir="$1"
+    local core_dir="${install_dir}/lib/seoggi/core"
+    local std_dir="${install_dir}/lib/seoggi/std"
+    local tools_dir="${install_dir}/share/seoggi/tools"
+    local user_home
+    local bin_dir
+    local shell_rc
+    
+    # Get the correct home directory even when running with sudo
+    if [ -n "${SUDO_USER:-}" ]; then
+        user_home=$(getent passwd "$SUDO_USER" | cut -d: -f6)
+    else
+        user_home="$HOME"
+    fi
+    bin_dir="$user_home/bin"
+    
+    info "Installing Seoggi components..."
+    
+    # Create directory structure with validation
+    for dir in "$core_dir" "$std_dir" "$bin_dir" "$tools_dir"; do
+        if ! mkdir -p "$dir"; then
+            error "Failed to create directory: $dir"
+            return 1
+        fi
+    done
+    
+    # Install core components with validation
+    info "Installing core components..."
+    if ! cp -r core/*.seo "$core_dir/" 2>/dev/null; then
+        warning "Some core components could not be copied"
+    fi
+    
+    for subdir in ai compiler parser runtime system types; do
+        if [[ -d "core/$subdir" ]]; then
+            if ! cp -r "core/$subdir" "$core_dir/"; then
+                warning "Failed to copy core/$subdir"
+            fi
+        fi
+    done
+    
+    # Install compiler with fallback
+    info "Installing compiler..."
+    if [[ -f "build/core/compiler/seoggi_compiler" ]]; then
+        if ! install -m 755 "build/core/compiler/seoggi_compiler" "$bin_dir/seo"; then
+            error "Failed to install compiler"
+            return 1
+        fi
+        info "Installed native compiler"
+    else
+        if [[ ! -f "core/seoggi_bootstrap" ]]; then
+            error "Neither native compiler nor bootstrap compiler found"
+            return 1
+        fi
+        if ! install -m 755 "core/seoggi_bootstrap" "$bin_dir/seo"; then
+            error "Failed to install bootstrap compiler"
+            return 1
+        fi
+        warning "Using bootstrap compiler"
+    fi
+    
+    # Install standard library with validation
+    info "Installing standard library..."
+    if ! cp -r std/* "$std_dir/" 2>/dev/null; then
+        warning "Some standard library components could not be copied"
+    fi
+    
+    # Install tools with validation
+    info "Installing tools..."
+    if ! cp -r tools/* "$tools_dir/" 2>/dev/null; then
+        warning "Some tools could not be copied"
+    fi
+    
+    # Set permissions
+    if [ -n "${SUDO_USER:-}" ]; then
+        if ! chown -R "$SUDO_USER" "$install_dir" "$bin_dir"; then
+            warning "Failed to set ownership of some files"
+        fi
+    fi
+    
+    # Verify critical components
+    if [[ ! -x "$bin_dir/seo" ]]; then
+        error "Compiler installation verification failed"
+        return 1
+    fi
+    
+    success "Components installed successfully"
+    info "Seoggi compiler installed at $bin_dir/seo"
+    
+    # Add bin directory to PATH for all supported shells
+    if [[ ":$PATH:" != *":$bin_dir:"* ]]; then
+        # Detect available shells and their rc files
+        for shell_conf in \
+            "$user_home/.bashrc" \
+            "$user_home/.zshrc" \
+            "$user_home/.config/fish/config.fish"; do
+            if [[ -f "$shell_conf" ]]; then
+                case "$shell_conf" in
+                    *.fish)
+                        echo "set -gx PATH \$PATH $bin_dir" >> "$shell_conf"
+                        ;;
+                    *)
+                        echo "export PATH=\"\$PATH:$bin_dir\"" >> "$shell_conf"
+                        ;;
+                esac
+                info "Added $bin_dir to PATH in ${shell_conf##*/}"
+            fi
+        done
+    fi
+    
+    # Create seoggi configuration directory
+    local config_dir="$user_home/.config/seoggi"
+    if mkdir -p "$config_dir"; then
+        if [ -n "${SUDO_USER:-}" ]; then
+            chown -R "$SUDO_USER" "$config_dir"
+        fi
+        info "Created configuration directory at $config_dir"
+    fi
+    
+    # Set SEOGGI_ROOT environment variable
+    local env_file="$config_dir/environment"
+    echo "export SEOGGI_ROOT=\"$install_dir\"" > "$env_file"
+    if [ -n "${SUDO_USER:-}" ]; then
+        chown "$SUDO_USER" "$env_file"
+    fi
+    info "Set SEOGGI_ROOT environment variable"
 }
 
 # Setup development environment
@@ -415,6 +723,37 @@ setup_dev_environment() {
     success "Installation complete"
 }
 
+# Cleanup function
+cleanup() {
+    info "Cleaning up..."
+    
+    # Remove duplicate bootstrap files
+    rm -f bootstrap/install.sh
+    rm -f bootstrap/seoggi_bootstrap
+    
+    # Move compiler components to core
+    if [[ -f bootstrap/compiler.py ]]; then
+        mv bootstrap/compiler.py core/compiler/
+    fi
+    if [[ -f bootstrap/compiler.rs ]]; then
+        mv bootstrap/compiler.rs core/compiler/
+    fi
+    if [[ -f bootstrap/seoc.c ]]; then
+        mv bootstrap/seoc.c core/compiler/
+    fi
+    
+    # Remove empty bootstrap directory
+    rmdir bootstrap 2>/dev/null || true
+    
+    # Clean build artifacts
+    rm -rf build/
+    
+    if [[ $? -ne 0 ]]; then
+        error "Installation failed! Please check the error messages above."
+        log_info
+    fi
+}
+
 # Main installation process
 main() {
     info "Starting Seoggi installation..."
@@ -434,13 +773,24 @@ main() {
     info "Installing dependencies..."
     install_dependencies
     
+    # Check dependencies
+    if ! check_dependencies; then
+        install_specific_deps "${MISSING_DEPS[@]}"
+    fi
+    
     # Setup development environment
     info "Setting up development environment..."
     setup_dev_environment "${SEOGGI_HOME}"
     
+    # Install Seoggi components
+    install_seoggi_components "${SEOGGI_HOME}"
+    
     # Configure shell
     info "Configuring shell environment..."
     configure_shell "${SEOGGI_HOME}"
+    
+    # Cleanup
+    cleanup
     
     success "Seoggi has been successfully installed!"
     success "Please restart your shell or run:"

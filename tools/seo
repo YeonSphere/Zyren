@@ -1,33 +1,43 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
-SEOGGI_ROOT="/home/dae/YeonSphere/Seoggi"
+# YeonSphere Universal Open Source License (YUOSL)
+# Copyright (c) 2024 Jeremy Matlock (@daedaevibin)
+# All rights reserved.
+# See LICENSE for full terms.
 
-# Function to find a .seo file
+# Seoggi Command Line Tool (seo)
+# This tool provides a command-line interface for the Seoggi programming language
+
+# Environment setup
+if [ -z "$SEOGGI_ROOT" ]; then
+    echo "Error: SEOGGI_ROOT environment variable not set"
+    exit 1
+fi
+
+# Helper function to find Seoggi files
 find_seo_file() {
-    local name="$1"
-    local file=""
-
-    # First check if it's a direct path to a .seo file
-    if [[ -f "$name" && "$name" == *.seo ]]; then
-        echo "$name"
+    local file="$1"
+    
+    # Check if file exists as is
+    if [ -f "$file" ]; then
+        echo "$file"
         return 0
     fi
-
-    # Then check if we need to add .seo extension
-    if [[ -f "${name}.seo" ]]; then
-        echo "${name}.seo"
+    
+    # Check if file exists with .seo extension
+    if [ -f "$file.seo" ]; then
+        echo "$file.seo"
         return 0
     fi
-
-    # Check current directory
-    if [[ -f "./${name}.seo" ]]; then
-        echo "./${name}.seo"
+    
+    # Check in examples directory
+    if [ -f "$SEOGGI_ROOT/examples/$file" ]; then
+        echo "$SEOGGI_ROOT/examples/$file"
         return 0
     fi
-
-    # Check examples directory
-    if [[ -f "$SEOGGI_ROOT/examples/${name}.seo" ]]; then
-        echo "$SEOGGI_ROOT/examples/${name}.seo"
+    
+    if [ -f "$SEOGGI_ROOT/examples/$file.seo" ]; then
+        echo "$SEOGGI_ROOT/examples/$file.seo"
         return 0
     fi
 
@@ -40,18 +50,59 @@ show_usage() {
     echo "Usage: seo <command> [arguments]"
     echo ""
     echo "Commands:"
+    echo "  build <target>  Build a Seoggi project"
+    echo "  compile <file>  Compile a Seoggi source file"
     echo "  exec <file>     Execute a Seoggi program"
-    echo "  run             Start REPL mode"
+    echo "  run [file]      Run a program or start REPL mode"
+    echo "  test [path]     Run tests in the specified path"
+    echo "  version         Show version information"
     echo "  help            Show this help message"
     echo ""
     echo "Examples:"
-    echo "  seo exec hello      # Run hello.seo"
+    echo "  seo build .         # Build current project"
+    echo "  seo compile foo.seo # Compile foo.seo to executable"
+    echo "  seo exec hello.seo  # Run hello.seo"
     echo "  seo run             # Start REPL"
+    echo "  seo run app.seo     # Run app.seo"
+    echo "  seo test            # Run all tests"
+    echo "  seo test core/      # Run tests in core/"
+    echo "  seo version         # Show version"
     echo "  seo help            # Show help"
 }
 
 # Main command handling
 case "$1" in
+    "build")
+        target="${2:-.}"  # Default to current directory if no target specified
+        if [ ! -f "$target/build.seo" ]; then
+            echo "Error: No build.seo found in $target"
+            echo "Are you in a Seoggi project directory?"
+            exit 1
+        fi
+        echo "Building project in $target..."
+        "$SEOGGI_ROOT/core/seoggi_bootstrap" "$target/build.seo"
+        ;;
+
+    "compile")
+        if [ -z "$2" ]; then
+            echo "Error: No file specified"
+            echo "Usage: seo compile <file>"
+            exit 1
+        fi
+
+        file=$(find_seo_file "$2")
+        if [ $? -ne 0 ]; then
+            echo "Error: Could not find Seoggi file: $2"
+            echo "Looked in:"
+            echo "  - Current directory"
+            echo "  - $SEOGGI_ROOT/examples"
+            exit 1
+        fi
+
+        echo "Compiling $file..."
+        "$SEOGGI_ROOT/core/seoggi_bootstrap" --compile "$file"
+        ;;
+
     "exec")
         if [ -z "$2" ]; then
             echo "Error: No file specified"
@@ -73,8 +124,42 @@ case "$1" in
         ;;
 
     "run")
-        echo "Starting Seoggi REPL..."
-        "$SEOGGI_ROOT/core/seoggi_bootstrap" --repl
+        if [ -z "$2" ]; then
+            echo "Starting Seoggi REPL..."
+            "$SEOGGI_ROOT/core/seoggi_bootstrap" --repl
+        else
+            file=$(find_seo_file "$2")
+            if [ $? -ne 0 ]; then
+                echo "Error: Could not find Seoggi file: $2"
+                echo "Looked in:"
+                echo "  - Current directory"
+                echo "  - $SEOGGI_ROOT/examples"
+                exit 1
+            fi
+            echo "Running $file..."
+            "$SEOGGI_ROOT/core/seoggi_bootstrap" "$file"
+        fi
+        ;;
+
+    "test")
+        test_path="${2:-.}"  # Default to current directory if no path specified
+        if [ ! -d "$test_path" ]; then
+            echo "Error: Test path does not exist: $test_path"
+            exit 1
+        fi
+        echo "Running tests in $test_path..."
+        # Find all test files and run them
+        find "$test_path" -name "*_test.seo" -type f | while read -r test_file; do
+            echo "Testing $test_file..."
+            "$SEOGGI_ROOT/core/seoggi_bootstrap" --test "$test_file"
+        done
+        ;;
+
+    "version")
+        echo "seo version 0.1.0"
+        echo "Seoggi Command Line Tool"
+        echo "Copyright (c) 2024 Jeremy Matlock (@daedaevibin)"
+        echo "Licensed under YeonSphere Universal Open Source License (YUOSL)"
         ;;
 
     "help")

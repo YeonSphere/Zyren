@@ -1,0 +1,126 @@
+// YeonSphere Universal Open Source License (YUOSL)
+// Copyright (c) 2024 Jeremy Matlock (@daedaevibin)
+// All rights reserved.
+// See LICENSE for full terms.
+
+// Seoggi Compiler
+// Native Seoggi compiler implementation
+
+import { File } from "core/io/file"
+import { Path } from "core/io/path"
+import { String } from "core/string"
+import { AST } from "core/ast"
+import { Parser } from "core/parser"
+import { TypeChecker } from "core/type_checker"
+import { CodeGen } from "core/codegen"
+import { Error } from "core/error"
+
+// Compiler options
+struct CompilerOptions {
+    optimize: bool
+    debug_info: bool
+    target: String
+    
+    // Constructor with defaults
+    new() -> CompilerOptions {
+        CompilerOptions {
+            optimize: true,
+            debug_info: true,
+            target: "native"
+        }
+    }
+}
+
+// Compiler implementation
+struct Compiler {
+    options: CompilerOptions
+    
+    // Constructor
+    new() -> Compiler {
+        Compiler { options: CompilerOptions::new() }
+    }
+    
+    // Create with options
+    static fn with_options(options: CompilerOptions) -> Compiler {
+        Compiler { options }
+    }
+    
+    // Compile a single file
+    fn compile_file(self, source: String, output: String) -> Result<(), Error> {
+        println("Compiling {} -> {}", source, output)
+        
+        // Read source
+        let source_code = File.read(source)?
+        
+        // Parse
+        println("Parsing...")
+        let ast = Parser::parse(source_code)?
+        
+        // Type check
+        println("Type checking...")
+        let typed_ast = TypeChecker::check(ast)?
+        
+        // Generate code
+        println("Generating code...")
+        let code = CodeGen::generate(typed_ast, self.options.target)?
+        
+        // Optimize if enabled
+        if self.options.optimize {
+            println("Optimizing...")
+            code.optimize()
+        }
+        
+        // Add debug info if enabled
+        if self.options.debug_info {
+            println("Adding debug info...")
+            code.add_debug_info()
+        }
+        
+        // Write output
+        println("Writing output...")
+        File.write(output, code.to_bytes())?
+        
+        println("Compilation successful!")
+        Ok(())
+    }
+    
+    // Compile multiple files
+    fn compile_files(self, sources: [String], output_dir: String) -> Result<[String], Error> {
+        let mut outputs = []
+        
+        // Create output directory
+        File.create_dir_all(output_dir)?
+        
+        // Compile each file
+        for source in sources {
+            let output = Path.join(output_dir, 
+                                 Path.with_extension(Path.file_name(source), "o"))
+            self.compile_file(source, output)?
+            outputs.push(output)
+        }
+        
+        Ok(outputs)
+    }
+    
+    // Link object files into executable
+    fn link(self, objects: [String], output: String, entry_point: String) -> Result<(), Error> {
+        println("Linking {} -> {}", objects.join(", "), output)
+        
+        // Create linker
+        let linker = Linker::new(self.options.target)
+        
+        // Add all objects
+        for obj in objects {
+            linker.add_object(obj)?
+        }
+        
+        // Set entry point
+        linker.set_entry_point(entry_point)?
+        
+        // Link
+        linker.link(output)?
+        
+        println("Linking successful!")
+        Ok(())
+    }
+}
