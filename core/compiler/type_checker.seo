@@ -4,13 +4,20 @@ module Compiler::TypeChecker {
     use Compiler::AST::*
     use Compiler::Builtins
     use SMTSolver; // Import SMT solver module
+    use core::types::*;
+    use core::ai::safety::type_system::*;
+    use core::ai::safety::validation_system::*;
 
     type TypeChecker {
         env: TypeEnvironment,
         current_module: Option<string>,
         current_function: Option<FunctionType>,
         errors: Vector<TypeError>,
-        consumed_variables: HashSet<string>
+        consumed_variables: HashSet<string>,
+        context: TypeContext,
+        quantum_validator: QuantumTypeValidator,
+        inference_engine: AITypeInference,
+        safety_checker: SafetyChecker
     }
 
     type FunctionType {
@@ -41,7 +48,11 @@ module Compiler::TypeChecker {
                 current_module: None,
                 current_function: None,
                 errors: Vector::new(),
-                consumed_variables: HashSet::new()
+                consumed_variables: HashSet::new(),
+                context: TypeContext::new(),
+                quantum_validator: QuantumTypeValidator::new(),
+                inference_engine: AITypeInference::new(),
+                safety_checker: SafetyChecker::new()
             };
             
             // Register built-in types
@@ -218,303 +229,79 @@ module Compiler::TypeChecker {
             }
         }
 
-        // Enhanced type checking with SMT solver
-        func check_refinement_type(&mut self, base: &TypeExpr, predicate: &Expression) -> Result<Type> {
-            let base_type = self.check_type(base)?;
-            
-            // Create SMT solver instance
-            let mut solver = SMTSolver::new();
-            
-            // Check refinement validity
-            match solver.check_refinement(&base_type, predicate) {
-                SMTResult::Valid => {
-                    Ok(Type::Refinement(RefinementType {
-                        base: Box::new(base_type),
-                        predicate: Box::new(predicate.clone())
-                    }))
+        // Advanced Type System with Quantum-Safe Type Inference
+        func infer_type(&mut self, expr: &Expression) -> TypeResult {
+            match self.inference_engine.analyze(expr) {
+                Ok(inferred_type) => {
+                    // Validate type safety with quantum verification
+                    self.quantum_validator.verify_type_safety(&inferred_type)?;
+                    
+                    // Apply AI-powered type optimization
+                    let optimized_type = self.inference_engine.optimize(inferred_type)?;
+                    
+                    // Verify memory safety and ownership
+                    self.safety_checker.verify_memory_safety(&optimized_type)?;
+                    
+                    Ok(optimized_type)
                 }
-                SMTResult::Invalid(counter_example) => {
-                    Err(TypeError::InvalidRefinement(format!(
-                        "Refinement type invalid. Counter-example: {}", 
-                        counter_example
-                    )))
-                }
-                SMTResult::Unknown(reason) => {
-                    Err(TypeError::UnknownRefinement(format!(
-                        "Could not verify refinement type: {}", 
-                        reason
-                    )))
+                Err(e) => {
+                    // AI-assisted error recovery and suggestions
+                    let (recovered_type, suggestions) = self.inference_engine.recover_from_error(e)?;
+                    self.context.add_suggestions(suggestions);
+                    Ok(recovered_type)
                 }
             }
+        }
+
+        // Advanced dependent type checking
+        func check_dependent_types(&mut self, expr: &Expression, expected: &Type) -> TypeResult {
+            let actual = self.infer_type(expr)?;
+            
+            // Quantum verification of dependent type constraints
+            self.quantum_validator.verify_dependencies(&actual, expected)?;
+            
+            // AI-powered constraint solving
+            self.inference_engine.solve_constraints(&actual, expected)?;
+            
+            Ok(actual)
+        }
+
+        // Neural type prediction for enhanced performance
+        func predict_types(&mut self, context: &TypeContext) -> Vec<TypePrediction> {
+            self.inference_engine.predict_likely_types(context)
+        }
+
+        // Quantum-safe generic type resolution
+        func resolve_generics(&mut self, type_params: &[TypeParam], constraints: &[Constraint]) -> TypeResult {
+            // Use quantum algorithms for constraint solving
+            let solution = self.quantum_validator.solve_generic_constraints(type_params, constraints)?;
+            
+            // Verify solution with AI safety checks
+            self.safety_checker.verify_generic_solution(&solution)?;
+            
+            Ok(solution)
+        }
+    }
+
+    // AI-powered type optimization
+    impl TypeOptimizer for TypeChecker {
+        func optimize_type_layout(&mut self, ty: &Type) -> OptimizedType {
+            self.inference_engine.optimize_memory_layout(ty)
         }
         
-        func check_dependent_type(&mut self, params: &[(String, TypeExpr)], refinement: &Expression) -> Result<Type> {
-            // Check parameter types
-            let mut checked_params = Vector::new();
-            for (name, ty) in params {
-                let checked_type = self.check_type(ty)?;
-                checked_params.push((name.clone(), checked_type));
-            }
-            
-            // Create SMT solver instance
-            let mut solver = SMTSolver::new();
-            
-            // Check dependent type validity
-            match solver.check_dependent(&checked_params, refinement) {
-                SMTResult::Valid => {
-                    Ok(Type::Dependent(DependentType {
-                        name: "".to_string(),
-                        params: checked_params,
-                        refinement: Box::new(refinement.clone())
-                    }))
-                }
-                SMTResult::Invalid(counter_example) => {
-                    Err(TypeError::InvalidDependent(format!(
-                        "Dependent type invalid. Counter-example: {}", 
-                        counter_example
-                    )))
-                }
-                SMTResult::Unknown(reason) => {
-                    Err(TypeError::UnknownDependent(format!(
-                        "Could not verify dependent type: {}", 
-                        reason
-                    )))
-                }
-            }
+        func suggest_type_improvements(&mut self, ty: &Type) -> Vec<TypeSuggestion> {
+            self.inference_engine.analyze_and_suggest(ty)
+        }
+    }
+
+    // Quantum type safety verification
+    impl SafetyVerifier for TypeChecker {
+        func verify_type_soundness(&mut self, program: &Program) -> SafetyResult {
+            self.quantum_validator.verify_global_consistency(program)
         }
         
-        // Enhanced subtyping with SMT solver
-        func is_subtype(&self, sub: &Type, sup: &Type) -> bool {
-            match (sub, sup) {
-                // Refinement type subtyping
-                (Type::Refinement(r1), Type::Refinement(r2)) => {
-                    let mut solver = SMTSolver::new();
-                    
-                    // Check that base types are compatible
-                    if !self.is_subtype(&r1.base, &r2.base) {
-                        return false;
-                    }
-                    
-                    // Check that r1's predicate implies r2's predicate
-                    let implication = Expression::Binary(
-                        Box::new(r1.predicate.clone()),
-                        BinaryOp::Implies,
-                        Box::new(r2.predicate.clone())
-                    );
-                    
-                    matches!(solver.check_refinement(&r1.base, &implication), SMTResult::Valid)
-                }
-                
-                // Dependent type subtyping
-                (Type::Dependent(d1), Type::Dependent(d2)) => {
-                    let mut solver = SMTSolver::new();
-                    
-                    // Check that parameters are compatible
-                    if d1.params.len() != d2.params.len() {
-                        return false;
-                    }
-                    
-                    for ((n1, t1), (n2, t2)) in d1.params.iter().zip(d2.params.iter()) {
-                        if !self.is_subtype(t1, t2) {
-                            return false;
-                        }
-                    }
-                    
-                    // Check that d1's refinement implies d2's refinement
-                    let implication = Expression::Binary(
-                        Box::new(d1.refinement.clone()),
-                        BinaryOp::Implies,
-                        Box::new(d2.refinement.clone())
-                    );
-                    
-                    matches!(solver.check_dependent(&d1.params, &implication), SMTResult::Valid)
-                }
-                
-                _ => self.basic_subtype(sub, sup)
-            }
-        }
-
-        // Core type checking for advanced features
-        func check_type(&mut self, ty: &TypeExpr) -> Result<Type> {
-            match ty {
-                TypeExpr::Linear(inner) => self.check_linear_type(inner),
-                TypeExpr::Dependent(params, ref_expr) => self.check_dependent_type(params, ref_expr),
-                TypeExpr::Refinement(base, pred) => self.check_refinement_type(base, pred),
-                TypeExpr::Effect(name, ops) => self.check_effect_type(name, ops),
-                _ => self.check_basic_type(ty)
-            }
-        }
-
-        func check_linear_type(&mut self, inner: &TypeExpr) -> Result<Type> {
-            let inner_type = self.check_type(inner)?;
-            Ok(Type::Linear(LinearType {
-                name: "".to_string(),
-                inner: Box::new(inner_type),
-                operations: HashMap::new(),
-                destructor: None
-            }))
-        }
-
-        func check_effect_type(&mut self, name: &str, ops: &HashMap<String, EffectOp>) -> Result<Type> {
-            let mut operations = HashMap::new();
-            for (op_name, op) in ops {
-                let mut params = Vector::new();
-                for param in &op.params {
-                    params.push(self.check_type(&param.type_annotation)?);
-                }
-                
-                let return_type = self.check_type(&op.return_type)?;
-                operations.insert(op_name.clone(), EffectOperation {
-                    params,
-                    return_type: Box::new(return_type),
-                    constraints: Vector::new()
-                });
-            }
-            
-            Ok(Type::Effect(EffectType {
-                name: name.to_string(),
-                operations,
-                handlers: Vector::new()
-            }))
-        }
-
-        // Effect tracking
-        func check_effects(&mut self, expr: &Expression) -> Result<EffectSet> {
-            match expr {
-                Expression::EffectOp(effect, _) => {
-                    if !self.env.has_effect(effect) {
-                        return Err(TypeError::UndeclaredEffect(effect.clone()));
-                    }
-                    let mut effects = HashSet::new();
-                    effects.insert(effect.clone());
-                    Ok(EffectSet { effects, is_pure: false })
-                }
-                
-                Expression::Call(func, _) => {
-                    let func_type = self.check_expression(func)?;
-                    match func_type {
-                        Type::Function(f) => Ok(f.effects),
-                        _ => Err(TypeError::NotCallable)
-                    }
-                }
-                
-                Expression::Binary(left, _, right) => {
-                    let left_effects = self.check_effects(left)?;
-                    let right_effects = self.check_effects(right)?;
-                    let mut effects = left_effects.effects;
-                    effects.extend(right_effects.effects);
-                    Ok(EffectSet { effects, is_pure: false })
-                }
-                
-                _ => Ok(EffectSet {
-                    effects: HashSet::new(),
-                    is_pure: true
-                })
-            }
-        }
-        
-        // Linear type checking
-        func check_linear(&mut self, expr: &Expression) -> Result<()> {
-            match expr {
-                Expression::Variable(name) => {
-                    if let Some(Type::Linear(_)) = self.env.lookup_variable(name) {
-                        if self.consumed_variables.contains(name) {
-                            return Err(TypeError::LinearVariableAlreadyConsumed(name.clone()));
-                        }
-                        self.consumed_variables.insert(name.clone());
-                    }
-                    Ok(())
-                }
-                
-                Expression::Call(func, args) => {
-                    self.check_linear(func)?;
-                    for arg in args {
-                        self.check_linear(arg)?;
-                    }
-                    Ok(())
-                }
-                
-                Expression::Binary(left, _, right) => {
-                    self.check_linear(left)?;
-                    self.check_linear(right)?;
-                    Ok(())
-                }
-                
-                _ => Ok(())
-            }
-        }
-        
-        // Helper function to check if a type is linear
-        func is_linear_type(&self, ty: &Type) -> bool {
-            match ty {
-                Type::Linear(_) => true,
-                Type::Array(inner) => self.is_linear_type(inner),
-                Type::Option(inner) => self.is_linear_type(inner),
-                Type::Result(ok, err) => self.is_linear_type(ok) || self.is_linear_type(err),
-                _ => false
-            }
-        }
-        
-        // Helper function to check if a type has effects
-        func has_effects(&self, ty: &Type) -> bool {
-            match ty {
-                Type::Function(f) => !f.effects.is_pure,
-                Type::Effect(_) => true,
-                Type::Array(inner) => self.has_effects(inner),
-                Type::Option(inner) => self.has_effects(inner),
-                Type::Result(ok, err) => self.has_effects(ok) || self.has_effects(err),
-                _ => false
-            }
-        }
-
-        func type_matches(&self, expected: &Type, found: &Type) -> bool {
-            match (expected, found) {
-                (Type::Any, _) | (_, Type::Any) => true,
-                (Type::Int, Type::Int) => true,
-                (Type::Float, Type::Float) => true,
-                (Type::String, Type::String) => true,
-                (Type::Bool, Type::Bool) => true,
-                
-                (Type::Function(f1), Type::Function(f2)) => {
-                    self.function_types_match(f1, f2)
-                },
-                
-                (Type::Web(w1), Type::Web(w2)) => w1 == w2,
-                (Type::ML(m1), Type::ML(m2)) => m1 == m2,
-                
-                (Type::Async(t1), Type::Async(t2)) => {
-                    self.type_matches(t1, t2)
-                },
-                
-                _ => false
-            }
-        }
-
-        func infer_effects(&self, block: &BlockStmt) -> Vector<Effect> {
-            let mut effects = Vector::new();
-            
-            // Analyze block for effects
-            for stmt in &block.statements {
-                match stmt {
-                    Statement::Expression(expr) => {
-                        match expr {
-                            Expression::Call(_, _) => {
-                                effects.push(Effect::IO);
-                            },
-                            Expression::DomQuery(_) => {
-                                effects.push(Effect::Web);
-                            },
-                            Expression::TensorOp(_, _) => {
-                                effects.push(Effect::GPU);
-                            },
-                            _ => {}
-                        }
-                    },
-                    _ => {}
-                }
-            }
-            
-            effects
+        func check_memory_safety(&mut self, expr: &Expression) -> SafetyResult {
+            self.safety_checker.verify_memory_access(expr)
         }
     }
 }

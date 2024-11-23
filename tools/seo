@@ -1,175 +1,338 @@
-#!/usr/bin/env bash
-
-# YeonSphere Universal Open Source License (YUOSL)
-# Copyright (c) 2024 Jeremy Matlock (@daedaevibin)
-# All rights reserved.
-# See LICENSE for full terms.
-
-# Seoggi Command Line Tool (seo)
-# This tool provides a command-line interface for the Seoggi programming language
+#!/bin/bash
+# Enhanced Seoggi CLI Tool
 
 # Environment setup
-if [ -z "$SEOGGI_ROOT" ]; then
-    echo "Error: SEOGGI_ROOT environment variable not set"
-    exit 1
-fi
+SEOGGI_ROOT=${SEOGGI_ROOT:-$(dirname $(dirname $(realpath $0)))}
+export PATH=$SEOGGI_ROOT/bin:$PATH
+export LD_LIBRARY_PATH=$SEOGGI_ROOT/lib:$LD_LIBRARY_PATH
 
-# Helper function to find Seoggi files
-find_seo_file() {
-    local file="$1"
-    
-    # Check if file exists as is
-    if [ -f "$file" ]; then
-        echo "$file"
-        return 0
-    fi
-    
-    # Check if file exists with .seo extension
-    if [ -f "$file.seo" ]; then
-        echo "$file.seo"
-        return 0
-    fi
-    
-    # Check in examples directory
-    if [ -f "$SEOGGI_ROOT/examples/$file" ]; then
-        echo "$SEOGGI_ROOT/examples/$file"
-        return 0
-    fi
-    
-    if [ -f "$SEOGGI_ROOT/examples/$file.seo" ]; then
-        echo "$SEOGGI_ROOT/examples/$file.seo"
-        return 0
-    fi
+# Configuration
+QUANTUM_BACKEND=${QUANTUM_BACKEND:-"simulator"}
+AI_BACKEND=${AI_BACKEND:-"neural"}
+OPTIMIZATION_LEVEL=${OPTIMIZATION_LEVEL:-"quantum"}
 
-    return 1
-}
+# Command definitions
+COMMANDS=(
+    "build:     Compile Seoggi source files"
+    "run:       Execute Seoggi programs"
+    "repl:      Start interactive REPL"
+    "test:      Run test suite"
+    "quantum:   Quantum computing operations"
+    "ai:        AI and neural network operations"
+    "install:   Install packages and dependencies"
+    "new:       Create new Seoggi project"
+    "doc:       Generate documentation"
+    "lint:      Check code style and safety"
+)
 
-# Function to show usage
-show_usage() {
-    echo "Seoggi Programming Language"
-    echo "Usage: seo <command> [arguments]"
+# Help message
+show_help() {
+    echo "Seoggi Programming Language CLI"
+    echo "Usage: seo [command] [options]"
     echo ""
     echo "Commands:"
-    echo "  build <target>  Build a Seoggi project"
-    echo "  compile <file>  Compile a Seoggi source file"
-    echo "  exec <file>     Execute a Seoggi program"
-    echo "  run [file]      Run a program or start REPL mode"
-    echo "  test [path]     Run tests in the specified path"
-    echo "  version         Show version information"
-    echo "  help            Show this help message"
+    for cmd in "${COMMANDS[@]}"; do
+        echo "  $cmd"
+    done
     echo ""
-    echo "Examples:"
-    echo "  seo build .         # Build current project"
-    echo "  seo compile foo.seo # Compile foo.seo to executable"
-    echo "  seo exec hello.seo  # Run hello.seo"
-    echo "  seo run             # Start REPL"
-    echo "  seo run app.seo     # Run app.seo"
-    echo "  seo test            # Run all tests"
-    echo "  seo test core/      # Run tests in core/"
-    echo "  seo version         # Show version"
-    echo "  seo help            # Show help"
+    echo "Options:"
+    echo "  --quantum-backend=[simulator|real]  Set quantum backend"
+    echo "  --ai-backend=[neural|quantum]       Set AI backend"
+    echo "  --opt-level=[none|basic|quantum]    Set optimization level"
+    echo "  --verbose                           Enable verbose output"
+    echo "  --safety-checks                     Enable additional safety checks"
 }
 
-# Main command handling
+# Build command
+build_project() {
+    echo "Building Seoggi project..."
+    seoggi-compiler \
+        --quantum-backend=$QUANTUM_BACKEND \
+        --ai-backend=$AI_BACKEND \
+        --opt-level=$OPTIMIZATION_LEVEL \
+        "$@"
+}
+
+# Run command
+run_program() {
+    echo "Running Seoggi program..."
+    seoggi-runtime \
+        --quantum-backend=$QUANTUM_BACKEND \
+        --ai-backend=$AI_BACKEND \
+        "$@"
+}
+
+# REPL command
+start_repl() {
+    echo "Starting Seoggi REPL..."
+    seoggi-repl \
+        --quantum-backend=$QUANTUM_BACKEND \
+        --ai-backend=$AI_BACKEND \
+        --interactive
+}
+
+# Test command
+run_tests() {
+    echo "Running tests..."
+    seoggi-test \
+        --quantum-backend=$QUANTUM_BACKEND \
+        --ai-backend=$AI_BACKEND \
+        "$@"
+}
+
+# Quantum operations
+quantum_ops() {
+    case "$1" in
+        "simulate")
+            shift
+            echo "Running quantum simulation..."
+            seoggi-quantum simulate "$@"
+            ;;
+        "optimize")
+            shift
+            echo "Optimizing quantum circuit..."
+            seoggi-quantum optimize "$@"
+            ;;
+        "analyze")
+            shift
+            echo "Analyzing quantum state..."
+            seoggi-quantum analyze "$@"
+            ;;
+        *)
+            echo "Quantum operations:"
+            echo "  simulate    Run quantum simulation"
+            echo "  optimize    Optimize quantum circuit"
+            echo "  analyze     Analyze quantum state"
+            ;;
+    esac
+}
+
+# AI operations
+ai_ops() {
+    case "$1" in
+        "train")
+            shift
+            echo "Training AI model..."
+
+            # Request system file access permission
+            echo -e "\n${BLUE}Requesting permission to access system files for training data${NC}"
+            echo "This will allow the AI to learn from files across your system"
+            read -p "Allow system file access? (y/N): " allow_files
+            
+            if [[ $allow_files =~ ^[Yy]$ ]]; then
+                echo "System file access granted"
+                # Set training data source flag
+                training_flags="--system-files=true"
+            else
+                echo "System file access denied"
+                training_flags="--system-files=false"
+            fi
+
+            # Request web navigation permission
+            echo -e "\n${BLUE}Requesting permission for web navigation${NC}"
+            echo "This will allow the AI to learn from web content by:"
+            echo "1. Opening your default browser"
+            echo "2. Navigating through relevant pages"
+            echo "3. Automatically managing tabs (closing old ones)"
+            read -p "Allow web navigation? (y/N): " allow_web
+            
+            if [[ $allow_web =~ ^[Yy]$ ]]; then
+                echo "Web navigation access granted"
+                training_flags="$training_flags --web-navigation=true"
+            else
+                echo "Web navigation access denied"
+                training_flags="$training_flags --web-navigation=false"
+            fi
+
+            # Detect and configure hardware
+            echo -e "\n${BLUE}Detecting available hardware...${NC}"
+            
+            # CPU Detection
+            cpu_info=$(lscpu)
+            cpu_model=$(echo "$cpu_info" | grep "Model name" | cut -d':' -f2 | xargs)
+            cpu_cores=$(echo "$cpu_info" | grep "^CPU(s):" | cut -d':' -f2 | xargs)
+            
+            # GPU Detection
+            if command -v lspci >/dev/null 2>&1; then
+                gpu_info=$(lspci | grep -i 'vga\|3d\|display')
+                if [[ $gpu_info == *"AMD"* ]] || [[ $gpu_info == *"Radeon"* ]]; then
+                    if command -v rocm-smi >/dev/null 2>&1; then
+                        gpu_model=$(rocm-smi --showproductname | grep "GPU" | cut -d':' -f2 | xargs)
+                        training_flags="$training_flags --gpu-backend=rocm"
+                        
+                        # Special handling for RX 550
+                        if [[ $gpu_model == *"RX 550"* ]]; then
+                            training_flags="$training_flags --rx550-optimizations=true"
+                        fi
+                    fi
+                elif [[ $gpu_info == *"NVIDIA"* ]]; then
+                    if command -v nvidia-smi >/dev/null 2>&1; then
+                        gpu_model=$(nvidia-smi --query-gpu=gpu_name --format=csv,noheader)
+                        training_flags="$training_flags --gpu-backend=cuda"
+                    fi
+                fi
+            fi
+
+            echo "Detected Hardware:"
+            echo "CPU: $cpu_model ($cpu_cores cores)"
+            if [ ! -z "$gpu_model" ]; then
+                echo "GPU: $gpu_model"
+            fi
+
+            # Configure training parameters
+            echo -e "\n${BLUE}Configuring training parameters...${NC}"
+            if [ ! -z "$gpu_model" ]; then
+                echo "Using GPU acceleration"
+                training_flags="$training_flags --use-gpu=true"
+            else
+                echo "Using CPU only"
+                training_flags="$training_flags --use-gpu=false"
+            fi
+
+            # Start training
+            echo -e "\n${BLUE}Starting training with detected configuration...${NC}"
+            seoggi-ai train \
+                --backend=$AI_BACKEND \
+                --quantum-enhanced=true \
+                $training_flags \
+                "$@"
+            ;;
+        "predict")
+            shift
+            echo "Running AI prediction..."
+            seoggi-ai predict \
+                --backend=$AI_BACKEND \
+                "$@"
+            ;;
+        "optimize")
+            shift
+            echo "Optimizing AI model..."
+            seoggi-ai optimize \
+                --backend=$AI_BACKEND \
+                --quantum-enhanced=true \
+                "$@"
+            ;;
+        *)
+            echo "AI operations:"
+            echo "  train       Train AI model"
+            echo "  predict     Run predictions"
+            echo "  optimize    Optimize model"
+            ;;
+    esac
+}
+
+# Install packages
+install_packages() {
+    case "$1" in
+        "quantum")
+            shift
+            echo "Installing quantum packages..."
+            seoggi-pkg install --quantum "$@"
+            ;;
+        "ai")
+            shift
+            echo "Installing AI packages..."
+            seoggi-pkg install --ai "$@"
+            ;;
+        *)
+            echo "Installing Seoggi packages..."
+            seoggi-pkg install "$@"
+            ;;
+    esac
+}
+
+# Create new project
+create_project() {
+    case "$1" in
+        "quantum")
+            shift
+            echo "Creating new quantum project..."
+            seoggi-new --template=quantum "$@"
+            ;;
+        "ai")
+            shift
+            echo "Creating new AI project..."
+            seoggi-new --template=ai "$@"
+            ;;
+        "hybrid")
+            shift
+            echo "Creating new hybrid quantum-AI project..."
+            seoggi-new --template=hybrid "$@"
+            ;;
+        *)
+            echo "Creating new Seoggi project..."
+            seoggi-new "$@"
+            ;;
+    esac
+}
+
+# Generate documentation
+generate_docs() {
+    echo "Generating documentation..."
+    seoggi-doc generate \
+        --quantum-docs=true \
+        --ai-docs=true \
+        "$@"
+}
+
+# Lint code
+lint_code() {
+    echo "Checking code..."
+    seoggi-lint \
+        --quantum-checks=true \
+        --ai-checks=true \
+        --safety-checks=true \
+        "$@"
+}
+
+# Parse command line arguments
 case "$1" in
     "build")
-        target="${2:-.}"  # Default to current directory if no target specified
-        if [ ! -f "$target/build.seo" ]; then
-            echo "Error: No build.seo found in $target"
-            echo "Are you in a Seoggi project directory?"
-            exit 1
-        fi
-        echo "Building project in $target..."
-        "$SEOGGI_ROOT/core/seoggi_bootstrap" "$target/build.seo"
+        shift
+        build_project "$@"
         ;;
-
-    "compile")
-        if [ -z "$2" ]; then
-            echo "Error: No file specified"
-            echo "Usage: seo compile <file>"
-            exit 1
-        fi
-
-        file=$(find_seo_file "$2")
-        if [ $? -ne 0 ]; then
-            echo "Error: Could not find Seoggi file: $2"
-            echo "Looked in:"
-            echo "  - Current directory"
-            echo "  - $SEOGGI_ROOT/examples"
-            exit 1
-        fi
-
-        echo "Compiling $file..."
-        "$SEOGGI_ROOT/core/seoggi_bootstrap" --compile "$file"
-        ;;
-
-    "exec")
-        if [ -z "$2" ]; then
-            echo "Error: No file specified"
-            echo "Usage: seo exec <file>"
-            exit 1
-        fi
-
-        file=$(find_seo_file "$2")
-        if [ $? -ne 0 ]; then
-            echo "Error: Could not find Seoggi file: $2"
-            echo "Looked in:"
-            echo "  - Current directory"
-            echo "  - $SEOGGI_ROOT/examples"
-            exit 1
-        fi
-
-        echo "Running $file..."
-        "$SEOGGI_ROOT/core/seoggi_bootstrap" "$file"
-        ;;
-
     "run")
-        if [ -z "$2" ]; then
-            echo "Starting Seoggi REPL..."
-            "$SEOGGI_ROOT/core/seoggi_bootstrap" --repl
-        else
-            file=$(find_seo_file "$2")
-            if [ $? -ne 0 ]; then
-                echo "Error: Could not find Seoggi file: $2"
-                echo "Looked in:"
-                echo "  - Current directory"
-                echo "  - $SEOGGI_ROOT/examples"
-                exit 1
-            fi
-            echo "Running $file..."
-            "$SEOGGI_ROOT/core/seoggi_bootstrap" "$file"
-        fi
+        shift
+        run_program "$@"
         ;;
-
+    "repl")
+        shift
+        start_repl "$@"
+        ;;
     "test")
-        test_path="${2:-.}"  # Default to current directory if no path specified
-        if [ ! -d "$test_path" ]; then
-            echo "Error: Test path does not exist: $test_path"
-            exit 1
-        fi
-        echo "Running tests in $test_path..."
-        # Find all test files and run them
-        find "$test_path" -name "*_test.seo" -type f | while read -r test_file; do
-            echo "Testing $test_file..."
-            "$SEOGGI_ROOT/core/seoggi_bootstrap" --test "$test_file"
-        done
+        shift
+        run_tests "$@"
         ;;
-
-    "version")
-        echo "seo version 0.1.0"
-        echo "Seoggi Command Line Tool"
-        echo "Copyright (c) 2024 Jeremy Matlock (@daedaevibin)"
-        echo "Licensed under YeonSphere Universal Open Source License (YUOSL)"
+    "quantum")
+        shift
+        quantum_ops "$@"
         ;;
-
-    "help")
-        show_usage
+    "ai")
+        shift
+        ai_ops "$@"
         ;;
-
+    "install")
+        shift
+        install_packages "$@"
+        ;;
+    "new")
+        shift
+        create_project "$@"
+        ;;
+    "doc")
+        shift
+        generate_docs "$@"
+        ;;
+    "lint")
+        shift
+        lint_code "$@"
+        ;;
+    "--help"|"-h"|"")
+        show_help
+        ;;
     *)
-        echo "Error: Unknown command '$1'"
-        echo ""
-        show_usage
+        echo "Unknown command: $1"
+        echo "Run 'seo --help' for usage information"
         exit 1
         ;;
 esac
