@@ -1,0 +1,231 @@
+quantum Circuit {
+    // Circuit configuration
+    private num_qubits: int
+    private gates: vector<Gate>
+    private statevector: vector<complex>
+    private measurements: vector<bool>
+    private error_correction_enabled: bool = false
+
+    // Constructor
+    init(num_qubits: int) {
+        self.num_qubits = num_qubits
+        self.gates = []
+        initialize_statevector()
+    }
+
+    // Gate operations
+    fn add_gate(gate: Gate) {
+        validate_qubit_index(gate.target)
+        self.gates.push(gate)
+    }
+
+    fn add_controlled_gate(gate: Gate, control: int, target: int) {
+        validate_qubit_index(control)
+        validate_qubit_index(target)
+        gate.set_control(control)
+        gate.set_target(target)
+        self.gates.push(gate)
+    }
+
+    // Basic quantum gates
+    fn hadamard(qubit: int) {
+        validate_qubit_index(qubit)
+        add_gate(HadamardGate(qubit))
+    }
+
+    fn cnot(control: int, target: int) {
+        validate_qubit_index(control)
+        validate_qubit_index(target)
+        add_gate(CNOTGate(control, target))
+    }
+
+    fn phase(qubit: int, angle: float) {
+        validate_qubit_index(qubit)
+        add_gate(PhaseGate(qubit, angle))
+    }
+
+    // Rotation gates
+    fn rx(qubit: int, angle: float) {
+        validate_qubit_index(qubit)
+        add_gate(RXGate(qubit, angle))
+    }
+
+    fn ry(qubit: int, angle: float) {
+        validate_qubit_index(qubit)
+        add_gate(RYGate(qubit, angle))
+    }
+
+    fn rz(qubit: int, angle: float) {
+        validate_qubit_index(qubit)
+        add_gate(RZGate(qubit, angle))
+    }
+
+    // Circuit execution
+    fn execute() {
+        validate_circuit()
+        initialize_statevector()
+        
+        for gate in self.gates {
+            apply_gate(gate)
+        }
+    }
+
+    // Measurement
+    fn measure_all() -> vector<bool> {
+        self.measurements = vector<bool>(self.num_qubits)
+        
+        for i in range(self.num_qubits) {
+            // Calculate measurement probability
+            let prob_zero = norm(self.statevector[i])
+            let random_val = random_float(0, 1)
+            self.measurements[i] = random_val > prob_zero
+            
+            // Collapse state
+            let state_size = 1 << self.num_qubits
+            for j in range(state_size) {
+                if (j & (1 << i)) != (self.measurements[i] ? 1 << i : 0) {
+                    self.statevector[j] = complex(0, 0)
+                }
+            }
+            
+            // Normalize remaining amplitudes
+            normalize_statevector()
+        }
+        
+        return self.measurements
+    }
+
+    // Error correction
+    fn enable_error_correction(enable: bool = true) {
+        self.error_correction_enabled = enable
+    }
+
+    fn add_error_correction_code(code_type: string) {
+        if !self.error_correction_enabled {
+            throw "Error correction is not enabled"
+        }
+
+        match code_type {
+            "bit-flip" => implement_bit_flip_code(),
+            "phase-flip" => implement_phase_flip_code(),
+            "shor" => implement_shor_code(),
+            "steane" => implement_steane_code(),
+            _ => throw "Unknown error correction code type"
+        }
+    }
+
+    // Circuit optimization
+    fn optimize() {
+        // Gate cancellation
+        remove_adjacent_inverse_gates()
+        
+        // Gate fusion
+        combine_compatible_gates()
+        
+        // Apply commutation rules
+        apply_commutation_rules()
+    }
+
+    fn transpile() {
+        // Map to native gates
+        map_to_native_gates()
+        
+        // Handle connectivity constraints
+        resolve_connectivity()
+        
+        // Optimize for target hardware
+        optimize_for_hardware()
+    }
+
+    // Helper functions
+    private fn initialize_statevector() {
+        let state_size = 1 << self.num_qubits
+        self.statevector = vector<complex>(state_size)
+        
+        // Initialize to |0...0⟩ state
+        self.statevector[0] = complex(1, 0)
+        for i in range(1, state_size) {
+            self.statevector[i] = complex(0, 0)
+        }
+    }
+
+    private fn normalize_statevector() {
+        let norm_factor = 0.0
+        for amp in self.statevector {
+            norm_factor += norm(amp)
+        }
+        norm_factor = sqrt(norm_factor)
+        
+        for i in range(self.statevector.size()) {
+            self.statevector[i] /= norm_factor
+        }
+    }
+
+    private fn validate_qubit_index(qubit: int) {
+        if qubit >= self.num_qubits {
+            throw "Qubit index out of range"
+        }
+    }
+
+    private fn validate_circuit() {
+        if self.gates.empty() {
+            throw "Circuit has no gates"
+        }
+        
+        for gate in self.gates {
+            validate_qubit_index(gate.target)
+            if gate.is_controlled() {
+                validate_qubit_index(gate.control)
+            }
+        }
+    }
+
+    // Error correction implementations
+    private fn implement_bit_flip_code() {
+        // Add encoding circuit for bit-flip code
+        for q in range(0, self.num_qubits, 3) {
+            cnot(q, q + 1)
+            cnot(q, q + 2)
+        }
+    }
+
+    private fn implement_phase_flip_code() {
+        // Add encoding circuit for phase-flip code
+        for q in range(0, self.num_qubits, 3) {
+            hadamard(q)
+            hadamard(q + 1)
+            hadamard(q + 2)
+            cnot(q, q + 1)
+            cnot(q, q + 2)
+        }
+    }
+
+    private fn implement_shor_code() {
+        // Implement Shor's 9-qubit code
+        for q in range(0, self.num_qubits, 9) {
+            // First level: phase-flip code
+            implement_phase_flip_code()
+            
+            // Second level: bit-flip code
+            implement_bit_flip_code()
+        }
+    }
+
+    private fn implement_steane_code() {
+        // Implement Steane's 7-qubit code
+        for q in range(0, self.num_qubits, 7) {
+            // Add encoding circuit
+            hadamard(q + 1)
+            hadamard(q + 2)
+            hadamard(q + 3)
+            
+            cnot(q, q + 3)
+            cnot(q + 1, q + 3)
+            cnot(q + 2, q + 3)
+            
+            cnot(q, q + 4)
+            cnot(q + 1, q + 5)
+            cnot(q + 2, q + 6)
+        }
+    }
+}

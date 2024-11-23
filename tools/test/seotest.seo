@@ -1,0 +1,33 @@
+# Seoggi test runner
+use std::io;
+use std::error;
+use core::compiler::lexer;
+use core::compiler::parser;
+use runtime::vm::interpreter;
+use core::common::config;
+
+fn main() -> Result<(), error::Error> {
+    # Parse command line arguments
+    let args = parse_args()?;
+    
+    # Load test configuration
+    let config = config::new(args.config_file)?;
+    
+    # Initialize test runner
+    let mut runner = TestRunner::new()
+        .with_compiler(Compiler::new()
+            .with_lexer(lexer::new())
+            .with_parser(parser::new()))
+        .with_interpreter(interpreter::new());
+    
+    # Discover and run tests
+    let test_files = discover_tests(args.test_dir)?;
+    for test_file in test_files {
+        runner.run_test(test_file)?;
+    }
+    
+    # Print test summary
+    runner.print_summary();
+    
+    Ok(())
+}

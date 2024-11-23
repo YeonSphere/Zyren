@@ -1,0 +1,97 @@
+# Type system module
+use std::error;
+use core::common::utils;
+
+# Basic type definitions
+type Type = enum {
+    Void,
+    Bool,
+    Int8,
+    Int16,
+    Int32,
+    Int64,
+    UInt8,
+    UInt16,
+    UInt32,
+    UInt64,
+    Float32,
+    Float64,
+    String,
+    Array(Box<Type>),
+    Tuple([Type]),
+    Function {
+        params: [Type],
+        return_type: Box<Type>
+    },
+    Struct {
+        name: string,
+        fields: [(string, Type)]
+    },
+    Enum {
+        name: string,
+        variants: [(string, [Type])]
+    },
+    Quantum {
+        size: u32
+    }
+}
+
+# Type context for managing types
+struct TypeContext {
+    types: Map<string, Type>,
+    current_scope: u32
+}
+
+impl TypeContext {
+    # Create new type context
+    fn new() -> TypeContext {
+        TypeContext {
+            types: Map::new(),
+            current_scope: 0
+        }
+    }
+    
+    # Add type to context
+    fn add_type(&mut self, name: string, typ: Type) -> Result<(), error::Error> {
+        if self.types.contains_key(name) {
+            return Err(error::new("Type already exists"));
+        }
+        self.types.insert(name, typ);
+        Ok(())
+    }
+    
+    # Get type from context
+    fn get_type(&self, name: string) -> Option<Type> {
+        self.types.get(name)
+    }
+    
+    # Enter new scope
+    fn enter_scope(&mut self) {
+        self.current_scope += 1;
+    }
+    
+    # Exit current scope
+    fn exit_scope(&mut self) -> Result<(), error::Error> {
+        if self.current_scope == 0 {
+            return Err(error::new("Cannot exit global scope"));
+        }
+        self.current_scope -= 1;
+        Ok(())
+    }
+}
+
+# Type checking functions
+fn check_type_compatibility(left: Type, right: Type) -> bool {
+    # TODO: Implement type compatibility checking
+    false
+}
+
+fn infer_type(expr: Expr) -> Result<Type, error::Error> {
+    # TODO: Implement type inference
+    Ok(Type::Void)
+}
+
+fn validate_type(typ: Type) -> Result<(), error::Error> {
+    # TODO: Implement type validation
+    Ok(())
+}

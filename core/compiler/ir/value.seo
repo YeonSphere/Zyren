@@ -1,0 +1,200 @@
+use std::rc::Rc;
+use crate::ir::type::Type;
+
+#[derive(Debug, Clone)]
+pub enum Value {
+    // Constants
+    IntConst(i64),
+    FloatConst(f64),
+    BoolConst(bool),
+    StringConst(String),
+    NullConst,
+
+    // Variables
+    Local(String, Type),
+    Global(String, Type),
+    Parameter(String, Type),
+
+    // Quantum Values
+    Qubit(u32),               // Qubit index
+    QuantumRegister(Vec<u32>), // Vector of qubit indices
+    QuantumState(Rc<QuantumStateData>),
+
+    // AI Values
+    Tensor(TensorData),
+    AIModel(AIModelData),
+    Dataset(DatasetInfo),
+
+    // References and Pointers
+    Reference(Box<Value>),
+    Pointer(Box<Value>),
+    Array(Vec<Value>, Type),
+
+    // Special Values
+    Phi(Vec<(Value, String)>), // (value, predecessor block)
+    Instruction(Box<Instruction>),
+    BasicBlock(String),
+    Function(String),
+}
+
+#[derive(Debug, Clone)]
+pub struct QuantumStateData {
+    num_qubits: u32,
+    amplitudes: Vec<Complex<f64>>,
+    measurement_basis: BasisState,
+}
+
+#[derive(Debug, Clone)]
+pub struct TensorData {
+    shape: Vec<usize>,
+    dtype: DataType,
+    data: Vec<f32>,
+    device: Device,
+    requires_grad: bool,
+}
+
+#[derive(Debug, Clone)]
+pub struct AIModelData {
+    architecture: ModelArchitecture,
+    parameters: Vec<TensorData>,
+    hyperparameters: Hyperparameters,
+    training_state: Option<TrainingState>,
+}
+
+#[derive(Debug, Clone)]
+pub struct DatasetInfo {
+    features: Vec<TensorData>,
+    labels: Vec<TensorData>,
+    metadata: DatasetMetadata,
+}
+
+impl Value {
+    pub fn get_type(&self) -> Type {
+        match self {
+            Value::IntConst(_) => Type::Int,
+            Value::FloatConst(_) => Type::Float,
+            Value::BoolConst(_) => Type::Bool,
+            Value::StringConst(_) => Type::String,
+            Value::NullConst => Type::Void,
+            Value::Local(_, ty) => ty.clone(),
+            Value::Global(_, ty) => ty.clone(),
+            Value::Parameter(_, ty) => ty.clone(),
+            Value::Qubit(_) => Type::Qubit,
+            Value::QuantumRegister(qubits) => Type::QuantumRegister(qubits.len() as u32),
+            Value::QuantumState(state) => Type::QuantumState(state.num_qubits),
+            Value::Tensor(tensor) => Type::Tensor(tensor.shape.clone()),
+            Value::AIModel(model) => Type::AIModel(Box::new(model.architecture.clone())),
+            Value::Dataset(info) => Type::Dataset(Box::new(info.metadata.clone())),
+            Value::Reference(val) => Type::Reference(Box::new(val.get_type())),
+            Value::Pointer(val) => Type::Pointer(Box::new(val.get_type())),
+            Value::Array(values, elem_type) => Type::Array(Box::new(elem_type.clone()), values.len() as u32),
+            Value::Phi(incoming) => incoming[0].0.get_type(), // All incoming values must have same type
+            Value::Instruction(inst) => inst.get_type(),
+            Value::BasicBlock(_) => Type::Label,
+            Value::Function(_) => Type::Function,
+        }
+    }
+
+    pub fn is_constant(&self) -> bool {
+        matches!(self,
+            Value::IntConst(_) |
+            Value::FloatConst(_) |
+            Value::BoolConst(_) |
+            Value::StringConst(_) |
+            Value::NullConst
+        )
+    }
+
+    pub fn is_quantum(&self) -> bool {
+        matches!(self,
+            Value::Qubit(_) |
+            Value::QuantumRegister(_) |
+            Value::QuantumState(_)
+        )
+    }
+
+    pub fn is_ai(&self) -> bool {
+        matches!(self,
+            Value::Tensor(_) |
+            Value::AIModel(_) |
+            Value::Dataset(_)
+        )
+    }
+
+    pub fn verify(&self) -> Result<(), String> {
+        match self {
+            Value::QuantumState(state) => {
+                // Verify quantum state validity
+                if state.amplitudes.len() != 1 << state.num_qubits {
+                    return Err("Invalid quantum state: amplitude count mismatch".to_string());
+                }
+                
+                // Verify normalization
+                let norm: f64 = state.amplitudes.iter()
+                    .map(|amp| amp.norm_sqr())
+                    .sum();
+                if (norm - 1.0).abs() > 1e-10 {
+                    return Err("Invalid quantum state: not normalized".to_string());
+                }
+            }
+            Value::Tensor(tensor) => {
+                // Verify tensor shape and data consistency
+                let total_size: usize = tensor.shape.iter().product();
+                if tensor.data.len() != total_size {
+                    return Err("Invalid tensor: data size mismatch".to_string());
+                }
+            }
+            Value::AIModel(model) => {
+                // Verify model architecture
+                model.architecture.verify()?;
+                
+                // Verify parameter shapes
+                for param in &model.parameters {
+                    param.verify()?;
+                }
+            }
+            _ => {}
+        }
+        Ok(())
+    }
+
+    pub fn to_llvm(&self) -> LLVMValue {
+        match self {
+            Value::IntConst(n) => LLVMValue::create_constant_int(*n),
+            Value::FloatConst(x) => LLVMValue::create_constant_float(*x),
+            Value::BoolConst(b) => LLVMValue::create_constant_bool(*b),
+            Value::StringConst(s) => LLVMValue::create_constant_string(s),
+            Value::Local(name, _) => LLVMValue::create_local(name),
+            Value::Global(name, _) => LLVMValue::create_global(name),
+            // Handle other cases...
+            _ => unimplemented!("LLVM conversion not implemented for this value type"),
+        }
+    }
+
+    pub fn to_wasm(&self) -> WASMValue {
+        match self {
+            Value::IntConst(n) => WASMValue::I32(*n as i32),
+            Value::FloatConst(x) => WASMValue::F64(*x),
+            Value::BoolConst(b) => WASMValue::I32(*b as i32),
+            Value::Local(name, _) => WASMValue::Local(name.clone()),
+            Value::Global(name, _) => WASMValue::Global(name.clone()),
+            // Handle other cases...
+            _ => unimplemented!("WASM conversion not implemented for this value type"),
+        }
+    }
+
+    pub fn to_js(&self) -> String {
+        match self {
+            Value::IntConst(n) => n.to_string(),
+            Value::FloatConst(x) => x.to_string(),
+            Value::BoolConst(b) => b.to_string(),
+            Value::StringConst(s) => format!("\"{}\"", s),
+            Value::Local(name, _) => name.clone(),
+            Value::Global(name, _) => name.clone(),
+            Value::Tensor(tensor) => format!("new Tensor({:?}, {:?})", tensor.shape, tensor.data),
+            Value::AIModel(model) => format!("new AIModel('{}')", model.architecture.name()),
+            // Handle other cases...
+            _ => unimplemented!("JavaScript conversion not implemented for this value type"),
+        }
+    }
+}

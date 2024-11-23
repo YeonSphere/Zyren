@@ -3,12 +3,12 @@
 project "Seoggi" {
     version: "0.1.0"
     authors: ["YeonSphere Team"]
-    description: "A comprehensive, multi-purpose programming language"
+    description: "A comprehensive quantum-first programming language with advanced AI capabilities"
     license: "MIT"
     
     // Build configuration
     build {
-        target: ["native", "wasm", "js"]
+        target: ["native", "wasm", "js", "quantum"]
         optimization: "release"
         debug_info: true
         parallel: true
@@ -28,14 +28,18 @@ project "Seoggi" {
             "async",
             "effects",
             "gpu",
-            "web"
+            "web",
+            "quantum",
+            "ai"
         ]
         
         optional: [
             "kernel",
             "embedded",
-            "ai",
-            "quantum"
+            "quantum_sim",
+            "quantum_hardware",
+            "neural_advanced",
+            "distributed_quantum"
         ]
     }
     
@@ -47,6 +51,7 @@ project "Seoggi" {
             ownership: true
             borrowing: true
             lifetime: true
+            quantum_memory: true
         }
         
         // Type system
@@ -56,6 +61,7 @@ project "Seoggi" {
             dependent: true
             refinement: true
             linear: true
+            quantum: true
         }
         
         // Effects
@@ -64,6 +70,7 @@ project "Seoggi" {
             inference: true
             handlers: true
             regions: true
+            quantum_effects: true
         }
         
         // Concurrency
@@ -72,6 +79,7 @@ project "Seoggi" {
             channels: true
             actors: true
             stm: true
+            quantum_parallelism: true
         }
         
         // Optimization
@@ -80,6 +88,25 @@ project "Seoggi" {
             lto: true
             pgo: true
             auto_vectorization: true
+            quantum_optimization: true
+        }
+
+        // Quantum features
+        quantum {
+            simulator: true
+            error_correction: true
+            noise_models: true
+            hardware_mapping: true
+            optimization: true
+        }
+
+        // AI features
+        ai {
+            neural_networks: true
+            quantum_ml: true
+            automatic_differentiation: true
+            distributed_training: true
+            hardware_acceleration: true
         }
     }
     
@@ -90,6 +117,7 @@ project "Seoggi" {
         formatting: true
         refactoring: true
         debugging: true
+        quantum_visualization: true
     }
     
     // Documentation
@@ -98,6 +126,7 @@ project "Seoggi" {
         format: ["html", "pdf", "man"]
         examples: true
         benchmarks: true
+        quantum_tutorials: true
     }
     
     // Testing

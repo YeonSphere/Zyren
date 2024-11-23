@@ -1,0 +1,51 @@
+use std::io;
+use std::json;
+
+pub struct Config {
+    quantum_backend: String,
+    quantum_optimization: i32,
+    ai_backend: String,
+    ai_optimization: i32,
+}
+
+impl Config {
+    pub fn new(path: String) -> Result<Config, Error> {
+        let file = io::read_file(path)?;
+        let json = json::parse(file)?;
+        
+        let mut config = Config {
+            quantum_backend: "simulator",
+            quantum_optimization: 2,
+            ai_backend: "cpu",
+            ai_optimization: 3,
+        };
+        
+        if let Some(quantum) = json.get("quantum") {
+            config.quantum_backend = quantum.get("backend").unwrap_or("simulator");
+            config.quantum_optimization = quantum.get("optimization_level").unwrap_or(2);
+        }
+        
+        if let Some(ai) = json.get("ai") {
+            config.ai_backend = ai.get("backend").unwrap_or("cpu");
+            config.ai_optimization = ai.get("optimization_level").unwrap_or(3);
+        }
+        
+        Ok(config)
+    }
+    
+    pub fn quantum_backend(&self) -> String {
+        self.quantum_backend.clone()
+    }
+    
+    pub fn quantum_optimization(&self) -> i32 {
+        self.quantum_optimization
+    }
+    
+    pub fn ai_backend(&self) -> String {
+        self.ai_backend.clone()
+    }
+    
+    pub fn ai_optimization(&self) -> i32 {
+        self.ai_optimization
+    }
+}

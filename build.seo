@@ -3,6 +3,8 @@
 import { Project } from "./project"
 import { Target } from "./core/compiler/codegen/generator"
 import { Error } from "./core/compiler/error"
+import { QuantumBackend } from "./core/ai/quantum/backend"
+import { NeuralBackend } from "./core/ai/neural/backend"
 
 // Build configuration
 struct BuildConfig {
@@ -12,6 +14,8 @@ struct BuildConfig {
     debug_info: bool
     parallel: bool
     incremental: bool
+    quantum_target: QuantumBackend
+    neural_target: NeuralBackend
     
     // Constructor
     new(project: Project) -> BuildConfig {
@@ -21,7 +25,9 @@ struct BuildConfig {
             optimization_level: 2,
             debug_info: true,
             parallel: true,
-            incremental: true
+            incremental: true,
+            quantum_target: QuantumBackend::Simulator,
+            neural_target: NeuralBackend::CPU
         }
     }
 }
@@ -50,20 +56,96 @@ struct BuildSystem {
         let sources = self.collect_sources(&project)?
         let modules = self.compile_sources(sources)?
         
-        // 5. Link modules
-        self.link_modules(modules)?
-        
-        // 6. Run tests if enabled
-        if project.testing.enabled {
-            self.run_tests()?
+        // 5. Build quantum components
+        if project.features.contains("quantum") {
+            self.build_quantum_components(&modules)?
         }
         
-        // 7. Generate documentation if enabled
+        // 6. Build AI components
+        if project.features.contains("ai") {
+            self.build_ai_components(&modules)?
+        }
+        
+        // 7. Link modules
+        self.link_modules(modules)?
+        
+        // 8. Run tests if enabled
+        if project.testing.enabled {
+            self.run_tests()?
+            if project.features.contains("quantum") {
+                self.run_quantum_tests()?
+            }
+        }
+        
+        // 9. Generate documentation if enabled
         if project.docs.generate {
             self.generate_docs()?
         }
         
         Ok(())
+    }
+    
+    // Quantum-specific build steps
+    fn build_quantum_components(&self, modules: &[Module]) -> Result<(), Error> {
+        // Configure quantum backend
+        let backend = self.configure_quantum_backend()?
+        
+        // Build quantum circuits
+        self.build_quantum_circuits(modules, &backend)?
+        
+        // Build error correction
+        if self.config.project.compiler.quantum.error_correction {
+            self.build_error_correction(modules, &backend)?
+        }
+        
+        // Build quantum optimizations
+        if self.config.project.compiler.quantum.optimization {
+            self.optimize_quantum_circuits(modules, &backend)?
+        }
+        
+        Ok(())
+    }
+    
+    // AI-specific build steps
+    fn build_ai_components(&self, modules: &[Module]) -> Result<(), Error> {
+        // Configure neural backend
+        let backend = self.configure_neural_backend()?
+        
+        // Build neural networks
+        self.build_neural_networks(modules, &backend)?
+        
+        // Build quantum ML components
+        if self.config.project.compiler.ai.quantum_ml {
+            self.build_quantum_ml(modules, &backend)?
+        }
+        
+        Ok(())
+    }
+    
+    // Helper functions
+    fn configure_quantum_backend(&self) -> Result<QuantumBackend, Error> {
+        match self.config.quantum_target {
+            QuantumBackend::Simulator => {
+                self.setup_quantum_simulator()
+            },
+            QuantumBackend::Hardware(device) => {
+                self.setup_quantum_hardware(device)
+            }
+        }
+    }
+    
+    fn configure_neural_backend(&self) -> Result<NeuralBackend, Error> {
+        match self.config.neural_target {
+            NeuralBackend::CPU => {
+                self.setup_cpu_backend()
+            },
+            NeuralBackend::GPU => {
+                self.setup_gpu_backend()
+            },
+            NeuralBackend::Quantum => {
+                self.setup_quantum_neural_backend()
+            }
+        }
     }
     
     // Project parsing
@@ -171,6 +253,16 @@ struct BuildSystem {
         
         // Fuzzing
         self.run_fuzz_tests()?
+        
+        Ok(())
+    }
+    
+    fn run_quantum_tests(&self) -> Result<(), Error> {
+        // Quantum unit tests
+        self.run_quantum_unit_tests()?
+        
+        // Quantum integration tests
+        self.run_quantum_integration_tests()?
         
         Ok(())
     }

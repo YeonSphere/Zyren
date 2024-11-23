@@ -1,0 +1,40 @@
+# Seoggi package manager
+use std::io;
+use std::error;
+use build::package;
+use build::dependency;
+use build::repository;
+use core::common::config;
+
+fn main() -> Result<(), error::Error> {
+    # Parse command line arguments
+    let args = parse_args()?;
+    
+    # Load package configuration
+    let config = config::new(args.config_file)?;
+    
+    # Initialize package manager
+    let mut manager = PackageManager::new()
+        .with_repository(repository::new(config.registry_url))
+        .with_dependency_resolver(dependency::new())
+        .with_cache(config.cache_dir);
+    
+    # Process command
+    match args.command {
+        Command::Install => {
+            manager.install_dependencies()?;
+        }
+        Command::Publish => {
+            manager.publish_package(args.package_file)?;
+        }
+        Command::Search => {
+            let results = manager.search_packages(args.query)?;
+            print_search_results(results);
+        }
+        Command::Update => {
+            manager.update_dependencies()?;
+        }
+    }
+    
+    Ok(())
+}

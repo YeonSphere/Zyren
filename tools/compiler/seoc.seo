@@ -1,0 +1,30 @@
+# Seoggi compiler driver
+use std::io;
+use std::error;
+use core::compiler::lexer;
+use core::compiler::parser;
+use core::compiler::codegen;
+use core::compiler::optimization;
+use core::common::config;
+
+fn main() -> Result<(), error::Error> {
+    # Parse command line arguments
+    let args = parse_args()?;
+    
+    # Load compiler configuration
+    let config = config::new(args.config_file)?;
+    
+    # Set up compiler pipeline
+    let pipeline = CompilerPipeline::new()
+        .with_lexer(lexer::new())
+        .with_parser(parser::new())
+        .with_optimizer(optimization::new(config.opt_level))
+        .with_codegen(codegen::new(config.target_triple));
+        
+    # Compile input files
+    for file in args.input_files {
+        pipeline.compile(file)?;
+    }
+    
+    Ok(())
+}

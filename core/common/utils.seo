@@ -1,0 +1,64 @@
+# Core utilities module
+use std::io;
+use std::error;
+
+# String utilities
+fn str_trim(s: string) -> string {
+    # TODO: Implement string trimming
+    s
+}
+
+fn str_split(s: string, delim: string) -> [string] {
+    # TODO: Implement string splitting
+    [s]
+}
+
+# File utilities
+fn read_file(path: string) -> Result<string, error::Error> {
+    # TODO: Implement file reading
+    Ok("")
+}
+
+fn write_file(path: string, content: string) -> Result<(), error::Error> {
+    # TODO: Implement file writing
+    Ok(())
+}
+
+# Path utilities
+fn join_paths(paths: ...[string]) -> string {
+    # TODO: Implement path joining
+    ""
+}
+
+fn absolute_path(path: string) -> string {
+    # TODO: Implement absolute path resolution
+    path
+}
+
+# Error handling utilities
+fn wrap_error(err: error::Error, msg: string) -> error::Error {
+    # TODO: Implement error wrapping
+    err
+}
+
+# Time utilities
+fn current_time() -> u64 {
+    # TODO: Implement current time
+    0
+}
+
+fn sleep(ms: u64) -> Result<(), error::Error> {
+    # TODO: Implement sleep
+    Ok(())
+}
+
+# Random utilities
+fn random_u64() -> u64 {
+    # TODO: Implement random number generation
+    0
+}
+
+fn random_range(min: u64, max: u64) -> u64 {
+    # TODO: Implement random range
+    min
+}

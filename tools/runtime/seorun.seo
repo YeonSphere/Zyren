@@ -1,0 +1,27 @@
+# Seoggi runtime executor
+use std::io;
+use std::error;
+use runtime::vm::interpreter;
+use runtime::vm::memory;
+use runtime::vm::gc;
+use core::common::config;
+
+fn main() -> Result<(), error::Error> {
+    # Parse command line arguments
+    let args = parse_args()?;
+    
+    # Load runtime configuration
+    let config = config::new(args.config_file)?;
+    
+    # Initialize runtime
+    let mut runtime = Runtime::new()
+        .with_interpreter(interpreter::new())
+        .with_memory_manager(memory::new(config.heap_size))
+        .with_gc(gc::new(config.gc_strategy));
+    
+    # Load and execute program
+    runtime.load_program(args.program_file)?;
+    runtime.execute()?;
+    
+    Ok(())
+}

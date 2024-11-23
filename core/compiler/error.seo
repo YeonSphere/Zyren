@@ -1,134 +1,138 @@
 // Error handling for the Seoggi compiler
 
-#[derive(Debug, Clone, PartialEq)]
-pub struct Position {
-    pub line: usize,
-    pub column: usize,
-    pub offset: usize,
-}
-
-impl Position {
-    pub fn new(line: usize, column: usize) -> Self {
-        Self {
-            line,
-            column,
-            offset: 0,
-        }
-    }
-}
-
-#[derive(Debug)]
-pub struct Error {
-    pub kind: ErrorKind,
-    pub pos: Position,
-}
-
-impl Error {
-    pub fn new(kind: ErrorKind, pos: Position) -> Self {
-        Self { kind, pos }
-    }
-}
+use std::fmt;
+use std::error::Error as StdError;
+use std::io;
 
 #[derive(Debug)]
 pub enum ErrorKind {
     // Lexical errors
-    UnexpectedCharacter(char),
-    UnterminatedStringLiteral,
-    UnterminatedCharacterLiteral,
-    EmptyCharacterLiteral,
-    CharacterLiteralContainsMoreThanOneCharacter,
-    InvalidEscapeSequence(char),
-    InvalidHexadecimalNumber,
-    InvalidInteger,
-    InvalidFloatingPointNumber,
-    UnterminatedMultiLineComment,
-    InvalidIdentifier,
+    InvalidCharacter(char),
+    UnterminatedString,
+    UnterminatedComment,
     
-    // Parser errors
-    UnexpectedToken(String),
-    ExpectedToken(String),
-    InvalidExpression,
-    InvalidStatement,
-    InvalidDeclaration,
-    InvalidType,
+    // Parsing errors
+    UnexpectedToken { expected: String, found: String },
+    UnexpectedEOF { expected: String },
+    InvalidSyntax(String),
     
-    // Type checker errors
-    TypeMismatch {
-        expected: String,
-        found: String,
-    },
-    UndefinedVariable(String),
+    // Type errors
+    TypeMismatch { expected: String, found: String },
     UndefinedType(String),
+    UndefinedVariable(String),
     UndefinedFunction(String),
-    InvalidTypeArguments {
-        expected: usize,
-        found: usize,
-    },
     
-    // Effect system errors
-    UnhandledEffect(String),
-    InvalidEffectHandler,
-    EffectInPureContext,
+    // Semantic errors
+    InvalidQuantumOperation(String),
+    InvalidAIOperation(String),
+    SafetyViolation(String),
+    ResourceLimitExceeded(String),
     
-    // Memory management errors
-    UseAfterMove(String),
-    InvalidBorrow,
-    InvalidLifetime,
+    // System errors
+    IOError(io::Error),
+    CompilerError(String),
     
-    // General errors
-    IOError(String),
-    InternalError(String),
+    // Runtime errors
+    QuantumStateError(String),
+    AIModelError(String),
     
-    // Lexical analysis errors
-    LexicalError,
+    // Other errors
+    Other(String)
 }
 
-impl std::fmt::Display for ErrorKind {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            ErrorKind::UnexpectedCharacter(c) => write!(f, "Unexpected character: {}", c),
-            ErrorKind::UnterminatedStringLiteral => write!(f, "Unterminated string literal"),
-            ErrorKind::UnterminatedCharacterLiteral => write!(f, "Unterminated character literal"),
-            ErrorKind::EmptyCharacterLiteral => write!(f, "Empty character literal"),
-            ErrorKind::CharacterLiteralContainsMoreThanOneCharacter => {
-                write!(f, "Character literal contains more than one character")
-            }
-            ErrorKind::InvalidEscapeSequence(c) => write!(f, "Invalid escape sequence: \\{}", c),
-            ErrorKind::InvalidHexadecimalNumber => write!(f, "Invalid hexadecimal number"),
-            ErrorKind::InvalidInteger => write!(f, "Invalid integer"),
-            ErrorKind::InvalidFloatingPointNumber => write!(f, "Invalid floating-point number"),
-            ErrorKind::UnterminatedMultiLineComment => write!(f, "Unterminated multi-line comment"),
-            ErrorKind::InvalidIdentifier => write!(f, "Invalid identifier"),
-            ErrorKind::UnexpectedToken(t) => write!(f, "Unexpected token: {}", t),
-            ErrorKind::ExpectedToken(t) => write!(f, "Expected token: {}", t),
-            ErrorKind::InvalidExpression => write!(f, "Invalid expression"),
-            ErrorKind::InvalidStatement => write!(f, "Invalid statement"),
-            ErrorKind::InvalidDeclaration => write!(f, "Invalid declaration"),
-            ErrorKind::InvalidType => write!(f, "Invalid type"),
-            ErrorKind::TypeMismatch { expected, found } => {
-                write!(f, "Type mismatch: expected {}, found {}", expected, found)
-            }
-            ErrorKind::UndefinedVariable(name) => write!(f, "Undefined variable: {}", name),
-            ErrorKind::UndefinedType(name) => write!(f, "Undefined type: {}", name),
-            ErrorKind::UndefinedFunction(name) => write!(f, "Undefined function: {}", name),
-            ErrorKind::InvalidTypeArguments { expected, found } => {
-                write!(
-                    f,
-                    "Invalid number of type arguments: expected {}, found {}",
-                    expected, found
-                )
-            }
-            ErrorKind::UnhandledEffect(effect) => write!(f, "Unhandled effect: {}", effect),
-            ErrorKind::InvalidEffectHandler => write!(f, "Invalid effect handler"),
-            ErrorKind::EffectInPureContext => write!(f, "Effect used in pure context"),
-            ErrorKind::UseAfterMove(var) => write!(f, "Use of moved value: {}", var),
-            ErrorKind::InvalidBorrow => write!(f, "Invalid borrow"),
-            ErrorKind::InvalidLifetime => write!(f, "Invalid lifetime"),
-            ErrorKind::IOError(msg) => write!(f, "IO error: {}", msg),
-            ErrorKind::InternalError(msg) => write!(f, "Internal error: {}", msg),
-            ErrorKind::LexicalError => write!(f, "Lexical analysis failed"),
+#[derive(Debug)]
+pub struct Error {
+    kind: ErrorKind,
+    message: String,
+    location: Option<Location>,
+}
+
+#[derive(Debug, Clone)]
+pub struct Location {
+    pub file: String,
+    pub line: usize,
+    pub column: usize,
+}
+
+impl Error {
+    pub fn new(kind: ErrorKind, message: String, location: Option<Location>) -> Self {
+        Error {
+            kind,
+            message,
+            location,
+        }
+    }
+    
+    pub fn kind(&self) -> &ErrorKind {
+        &self.kind
+    }
+    
+    pub fn location(&self) -> Option<&Location> {
+        self.location.as_ref()
+    }
+}
+
+impl fmt::Display for Error {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        if let Some(loc) = &self.location {
+            write!(f, "Error at {}:{}:{}: {}", loc.file, loc.line, loc.column, self.message)
+        } else {
+            write!(f, "Error: {}", self.message)
         }
     }
 }
 
-impl std::error::Error for Error {}
+impl StdError for Error {
+    fn source(&self) -> Option<&(dyn StdError + 'static)> {
+        match &self.kind {
+            ErrorKind::IOError(err) => Some(err),
+            _ => None,
+        }
+    }
+}
+
+impl From<io::Error> for Error {
+    fn from(err: io::Error) -> Self {
+        Error::new(
+            ErrorKind::IOError(err),
+            "IO error occurred".to_string(),
+            None,
+        )
+    }
+}
+
+// Helper functions for error creation
+pub fn type_error(expected: &str, found: &str, location: Option<Location>) -> Error {
+    Error::new(
+        ErrorKind::TypeMismatch {
+            expected: expected.to_string(),
+            found: found.to_string(),
+        },
+        format!("Type mismatch: expected {}, found {}", expected, found),
+        location,
+    )
+}
+
+pub fn quantum_error(message: &str, location: Option<Location>) -> Error {
+    Error::new(
+        ErrorKind::QuantumStateError(message.to_string()),
+        format!("Quantum state error: {}", message),
+        location,
+    )
+}
+
+pub fn ai_error(message: &str, location: Option<Location>) -> Error {
+    Error::new(
+        ErrorKind::AIModelError(message.to_string()),
+        format!("AI model error: {}", message),
+        location,
+    )
+}
+
+pub fn safety_error(message: &str, location: Option<Location>) -> Error {
+    Error::new(
+        ErrorKind::SafetyViolation(message.to_string()),
+        format!("Safety violation: {}", message),
+        location,
+    )
+}

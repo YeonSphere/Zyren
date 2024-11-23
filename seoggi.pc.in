@@ -1,0 +1,12 @@
+prefix=@CMAKE_INSTALL_PREFIX@
+exec_prefix=${prefix}
+libdir=${exec_prefix}/lib
+includedir=${prefix}/include
+
+Name: seoggi
+Description: Quantum and AI-focused programming language
+Version: @PROJECT_VERSION@
+URL: https://github.com/YeonSphere/Seoggi
+Requires: llvm-18 z3
+Libs: -L${libdir} -lseoggi
+Cflags: -I${includedir}

@@ -7,6 +7,7 @@ module Compiler::TypeChecker {
     use core::types::*;
     use core::ai::safety::type_system::*;
     use core::ai::safety::validation_system::*;
+    use std::collections::HashMap;
 
     type TypeChecker {
         env: TypeEnvironment,
@@ -17,7 +18,8 @@ module Compiler::TypeChecker {
         context: TypeContext,
         quantum_validator: QuantumTypeValidator,
         inference_engine: AITypeInference,
-        safety_checker: SafetyChecker
+        safety_checker: SafetyChecker,
+        safety_level: SafetyLevel,
     }
 
     type FunctionType {
@@ -41,8 +43,15 @@ module Compiler::TypeChecker {
         is_pure: bool
     }
 
+    #[derive(Debug, Clone, PartialEq)]
+    type SafetyLevel {
+        Low,    // Basic type checking
+        Medium, // Additional quantum state verification
+        High,   // Full quantum and AI safety verification
+    }
+
     impl TypeChecker {
-        func new() -> Self {
+        func new(safety_level: SafetyLevel) -> Self {
             let mut checker = TypeChecker {
                 env: TypeEnvironment::new(),
                 current_module: None,
@@ -52,7 +61,8 @@ module Compiler::TypeChecker {
                 context: TypeContext::new(),
                 quantum_validator: QuantumTypeValidator::new(),
                 inference_engine: AITypeInference::new(),
-                safety_checker: SafetyChecker::new()
+                safety_checker: SafetyChecker::new(),
+                safety_level,
             };
             
             // Register built-in types
@@ -61,6 +71,9 @@ module Compiler::TypeChecker {
         }
 
         func check_program(&mut self, program: &Program) -> Result<()> {
+            // Initialize built-in types
+            self.init_builtin_types();
+
             // First pass: Register all type declarations
             self.register_types(program)?;
             
@@ -76,33 +89,6 @@ module Compiler::TypeChecker {
             }
         }
 
-        func register_builtin_types(&mut self) {
-            // Basic types
-            self.env.register_type("int", Type::Int);
-            self.env.register_type("float", Type::Float);
-            self.env.register_type("bool", Type::Bool);
-            self.env.register_type("string", Type::String);
-            
-            // Web types
-            self.env.register_type("Element", Type::Web(WebType::Element));
-            self.env.register_type("Event", Type::Web(WebType::Event));
-            self.env.register_type("Document", Type::Web(WebType::Document));
-            
-            // System types
-            self.env.register_type("File", Type::System(SystemType::File));
-            self.env.register_type("Socket", Type::System(SystemType::Socket));
-            self.env.register_type("Process", Type::System(SystemType::Process));
-            
-            // AI/ML types
-            self.env.register_type("Tensor", Type::ML(MLType::Tensor));
-            self.env.register_type("Matrix", Type::ML(MLType::Matrix));
-            self.env.register_type("Model", Type::ML(MLType::Model));
-            
-            // Async types
-            self.env.register_type("Future", Type::Async(Box::new(Type::Any)));
-            self.env.register_type("Stream", Type::Async(Box::new(Type::Any)));
-        }
-
         func check_declaration(&mut self, decl: &Declaration) -> Result<Type> {
             match decl {
                 Declaration::Module(module) => self.check_module(module),
@@ -111,197 +97,167 @@ module Compiler::TypeChecker {
                 Declaration::Type(type_decl) => self.check_type_declaration(type_decl),
                 Declaration::Use(use_decl) => self.check_use(use_decl),
                 Declaration::Block(block) => self.check_block(block),
-                Declaration::Expression(expr) => self.check_expression(expr)
+                Declaration::Expression(expr) => self.check_expression(expr),
+                Declaration::Quantum(quantum) => self.check_quantum_declaration(quantum),
+                Declaration::AI(ai) => self.check_ai_declaration(ai),
             }
-        }
-
-        func check_module(&mut self, module: &ModuleDecl) -> Result<Type> {
-            self.current_module = Some(module.name.clone());
-            
-            // Create new scope for module
-            self.env.push_scope();
-            
-            // Check all declarations in module
-            for decl in &module.declarations {
-                self.check_declaration(decl)?;
-            }
-            
-            self.env.pop_scope();
-            self.current_module = None;
-            
-            Ok(Type::Module(module.name.clone()))
         }
 
         func check_function(&mut self, func: &FunctionDecl) -> Result<Type> {
-            // Check parameter types
-            let mut param_types = Vector::new();
-            self.env.push_scope();
-            
+            // Create new scope for function parameters
+            self.enter_scope();
+
+            // Check parameters
             for param in &func.params {
-                let param_type = self.resolve_type(&param.type_annotation)?;
-                self.env.register_variable(&param.name, param_type.clone());
-                param_types.push(param_type);
+                self.check_parameter(param)?;
             }
-            
+
             // Check return type
-            let return_type = match &func.return_type {
-                Some(rt) => self.resolve_type(rt)?,
-                None => Type::Unit
-            };
-            
-            // Create function type for type checking body
-            let func_type = FunctionType {
-                params: param_types,
-                return_type: return_type.clone(),
-                is_async: func.is_async,
-                effects: self.infer_effects(&func.body)
-            };
-            
-            self.current_function = Some(func_type.clone());
-            
+            if let Some(return_type) = &func.return_type {
+                self.check_type_exists(return_type)?;
+            }
+
+            // Check quantum effects if present
+            if func.has_quantum_effects() {
+                self.verify_quantum_safety(&func.body)?;
+            }
+
+            // Check AI model usage if present
+            if func.has_ai_effects() {
+                self.verify_ai_safety(&func.body)?;
+            }
+
             // Check function body
             let body_type = self.check_block(&func.body)?;
-            
-            // Verify return type matches body
-            if !self.type_matches(&return_type, &body_type) {
-                return Err(TypeError::ReturnTypeMismatch {
-                    expected: return_type,
-                    found: body_type
-                });
+
+            // Verify return type matches
+            if let Some(return_type) = &func.return_type {
+                if !self.types_match(&body_type, return_type) {
+                    return Err(TypeError::ReturnTypeMismatch {
+                        expected: return_type.clone(),
+                        found: body_type,
+                    });
+                }
             }
-            
+
+            // Exit function scope
+            self.exit_scope();
+
+            Ok(Type::Function(Box::new(FunctionType {
+                params: func.params.iter().map(|p| p.type_annotation.clone()).collect(),
+                return_type: func.return_type.clone().unwrap_or(Type::Unit),
+                is_async: func.is_async,
+                effects: self.infer_effects(&func.body),
+            })))
+        }
+
+        func check_quantum_declaration(&mut self, quantum: &QuantumDecl) -> Result<Type> {
+            match self.safety_level {
+                SafetyLevel::High => {
+                    // Verify quantum state consistency
+                    self.verify_quantum_state_consistency(quantum)?;
+                    
+                    // Check decoherence properties
+                    self.check_decoherence_properties(quantum)?;
+                    
+                    // Verify entanglement constraints
+                    self.verify_entanglement_constraints(quantum)?;
+                }
+                SafetyLevel::Medium => {
+                    // Basic quantum state verification
+                    self.verify_quantum_state_consistency(quantum)?;
+                }
+                SafetyLevel::Low => {
+                    // Only type checking, no quantum-specific verification
+                }
+            }
+            Ok(Type::Quantum(quantum.clone()))
+        }
+
+        func check_ai_declaration(&mut self, ai: &AIDecl) -> Result<Type> {
+            match self.safety_level {
+                SafetyLevel::High => {
+                    // Verify AI model safety properties
+                    self.verify_ai_model_safety(ai)?;
+                    
+                    // Check resource bounds
+                    self.check_resource_bounds(ai)?;
+                    
+                    // Verify training data safety
+                    self.verify_training_data_safety(ai)?;
+                }
+                SafetyLevel::Medium => {
+                    // Basic AI model verification
+                    self.verify_ai_model_safety(ai)?;
+                }
+                SafetyLevel::Low => {
+                    // Only type checking, no AI-specific verification
+                }
+            }
+            Ok(Type::AI(ai.clone()))
+        }
+
+        func verify_quantum_state_consistency(&self, quantum: &QuantumDecl) -> Result<(), Error> {
+            // Check quantum register initialization
+            if !quantum.is_properly_initialized() {
+                return Err(quantum_error(
+                    "Quantum register not properly initialized",
+                    Some(quantum.location.clone()),
+                ));
+            }
+
+            // Verify quantum operations
+            for op in &quantum.operations {
+                if !self.is_valid_quantum_operation(op) {
+                    return Err(quantum_error(
+                        &format!("Invalid quantum operation: {:?}", op),
+                        Some(quantum.location.clone()),
+                    ));
+                }
+            }
+
+            Ok(())
+        }
+
+        func verify_ai_model_safety(&self, ai: &AIDecl) -> Result<(), Error> {
+            // Check model architecture safety
+            if !ai.has_safe_architecture() {
+                return Err(ai_error(
+                    "Unsafe AI model architecture",
+                    Some(ai.location.clone()),
+                ));
+            }
+
+            // Verify training parameters
+            if !self.are_training_parameters_safe(&ai.training_params) {
+                return Err(ai_error(
+                    "Unsafe training parameters",
+                    Some(ai.location.clone()),
+                ));
+            }
+
+            Ok(())
+        }
+
+        // Helper functions for type checking
+        func enter_scope(&mut self) {
+            self.env.push_scope();
+        }
+
+        func exit_scope(&mut self) {
             self.env.pop_scope();
-            self.current_function = None;
-            
-            Ok(Type::Function(Box::new(func_type)))
         }
 
-        func check_expression(&mut self, expr: &Expression) -> Result<Type> {
-            match expr {
-                Expression::IntLiteral(_) => Ok(Type::Int),
-                Expression::FloatLiteral(_) => Ok(Type::Float),
-                Expression::StringLiteral(_) => Ok(Type::String),
-                Expression::BoolLiteral(_) => Ok(Type::Bool),
-                
-                Expression::Variable(name) => {
-                    self.env.lookup_variable(name)
-                        .ok_or_else(|| TypeError::UndefinedVariable(name.clone()))
-                },
-                
-                Expression::Binary(left, op, right) => {
-                    let left_type = self.check_expression(left)?;
-                    let right_type = self.check_expression(right)?;
-                    self.check_binary_op(&left_type, op, &right_type)
-                },
-                
-                Expression::Call(callee, args) => {
-                    let callee_type = self.check_expression(callee)?;
-                    self.check_function_call(&callee_type, args)
-                },
-                
-                Expression::Get(object, field) => {
-                    let obj_type = self.check_expression(object)?;
-                    self.check_field_access(&obj_type, field)
-                },
-                
-                // Web-specific expressions
-                Expression::DomQuery(selector) => {
-                    Ok(Type::Web(WebType::Element))
-                },
-                
-                Expression::EventHandler(event, handler) => {
-                    self.check_event_handler(event, handler)
-                },
-                
-                // AI/ML expressions
-                Expression::TensorOp(op, tensors) => {
-                    self.check_tensor_operation(op, tensors)
-                },
-                
-                Expression::ModelInference(model, input) => {
-                    self.check_model_inference(model, input)
-                },
-                
-                // Async expressions
-                Expression::Await(future) => {
-                    self.check_await_expression(future)
-                }
+        func types_match(&self, t1: &Type, t2: &Type) -> bool {
+            match (t1, t2) {
+                (Type::Int, Type::Int) => true,
+                (Type::Float, Type::Float) => true,
+                (Type::Bool, Type::Bool) => true,
+                (Type::String, Type::String) => true,
+                (Type::Quantum(q1), Type::Quantum(q2)) => q1 == q2,
+                (Type::AI(a1), Type::AI(a2)) => a1 == a2,
+                _ => false,
             }
-        }
-
-        // Advanced Type System with Quantum-Safe Type Inference
-        func infer_type(&mut self, expr: &Expression) -> TypeResult {
-            match self.inference_engine.analyze(expr) {
-                Ok(inferred_type) => {
-                    // Validate type safety with quantum verification
-                    self.quantum_validator.verify_type_safety(&inferred_type)?;
-                    
-                    // Apply AI-powered type optimization
-                    let optimized_type = self.inference_engine.optimize(inferred_type)?;
-                    
-                    // Verify memory safety and ownership
-                    self.safety_checker.verify_memory_safety(&optimized_type)?;
-                    
-                    Ok(optimized_type)
-                }
-                Err(e) => {
-                    // AI-assisted error recovery and suggestions
-                    let (recovered_type, suggestions) = self.inference_engine.recover_from_error(e)?;
-                    self.context.add_suggestions(suggestions);
-                    Ok(recovered_type)
-                }
-            }
-        }
-
-        // Advanced dependent type checking
-        func check_dependent_types(&mut self, expr: &Expression, expected: &Type) -> TypeResult {
-            let actual = self.infer_type(expr)?;
-            
-            // Quantum verification of dependent type constraints
-            self.quantum_validator.verify_dependencies(&actual, expected)?;
-            
-            // AI-powered constraint solving
-            self.inference_engine.solve_constraints(&actual, expected)?;
-            
-            Ok(actual)
-        }
-
-        // Neural type prediction for enhanced performance
-        func predict_types(&mut self, context: &TypeContext) -> Vec<TypePrediction> {
-            self.inference_engine.predict_likely_types(context)
-        }
-
-        // Quantum-safe generic type resolution
-        func resolve_generics(&mut self, type_params: &[TypeParam], constraints: &[Constraint]) -> TypeResult {
-            // Use quantum algorithms for constraint solving
-            let solution = self.quantum_validator.solve_generic_constraints(type_params, constraints)?;
-            
-            // Verify solution with AI safety checks
-            self.safety_checker.verify_generic_solution(&solution)?;
-            
-            Ok(solution)
-        }
-    }
-
-    // AI-powered type optimization
-    impl TypeOptimizer for TypeChecker {
-        func optimize_type_layout(&mut self, ty: &Type) -> OptimizedType {
-            self.inference_engine.optimize_memory_layout(ty)
-        }
-        
-        func suggest_type_improvements(&mut self, ty: &Type) -> Vec<TypeSuggestion> {
-            self.inference_engine.analyze_and_suggest(ty)
-        }
-    }
-
-    // Quantum type safety verification
-    impl SafetyVerifier for TypeChecker {
-        func verify_type_soundness(&mut self, program: &Program) -> SafetyResult {
-            self.quantum_validator.verify_global_consistency(program)
-        }
-        
-        func check_memory_safety(&mut self, expr: &Expression) -> SafetyResult {
-            self.safety_checker.verify_memory_access(expr)
         }
     }
 }

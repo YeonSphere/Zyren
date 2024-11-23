@@ -1,0 +1,200 @@
+use std::collections::HashSet;
+use crate::ir::instruction::Instruction;
+use crate::ir::value::Value;
+
+pub struct BasicBlock {
+    name: String,
+    instructions: Vec<Instruction>,
+    predecessors: HashSet<String>,
+    successors: HashSet<String>,
+    phi_nodes: Vec<PhiNode>,
+    dominators: HashSet<String>,
+    loop_depth: u32,
+}
+
+pub struct PhiNode {
+    target: Value,
+    incoming_values: Vec<(Value, String)>, // (value, predecessor block name)
+}
+
+impl BasicBlock {
+    pub fn new(name: String) -> Self {
+        BasicBlock {
+            name,
+            instructions: Vec::new(),
+            predecessors: HashSet::new(),
+            successors: HashSet::new(),
+            phi_nodes: Vec::new(),
+            dominators: HashSet::new(),
+            loop_depth: 0,
+        }
+    }
+
+    pub fn name(&self) -> &str {
+        &self.name
+    }
+
+    pub fn add_instruction(&mut self, instruction: Instruction) {
+        self.instructions.push(instruction);
+    }
+
+    pub fn add_phi_node(&mut self, node: PhiNode) {
+        self.phi_nodes.push(node);
+    }
+
+    pub fn add_predecessor(&mut self, block_name: String) {
+        self.predecessors.insert(block_name);
+    }
+
+    pub fn add_successor(&mut self, block_name: String) {
+        self.successors.insert(block_name);
+    }
+
+    pub fn set_loop_depth(&mut self, depth: u32) {
+        self.loop_depth = depth;
+    }
+
+    pub fn add_dominator(&mut self, block_name: String) {
+        self.dominators.insert(block_name);
+    }
+
+    pub fn instructions(&self) -> &[Instruction] {
+        &self.instructions
+    }
+
+    pub fn successors(&self) -> &HashSet<String> {
+        &self.successors
+    }
+
+    pub fn has_terminator(&self) -> bool {
+        if let Some(last) = self.instructions.last() {
+            last.is_terminator()
+        } else {
+            false
+        }
+    }
+
+    pub fn verify(&self) -> Result<(), String> {
+        // Verify that block has instructions
+        if self.instructions.is_empty() {
+            return Err(format!("Basic block {} is empty", self.name));
+        }
+
+        // Verify phi nodes
+        self.verify_phi_nodes()?;
+
+        // Verify instruction sequence
+        self.verify_instruction_sequence()?;
+
+        // Verify terminator
+        self.verify_terminator()?;
+
+        Ok(())
+    }
+
+    fn verify_phi_nodes(&self) -> Result<(), String> {
+        // All phi nodes must be at the start of the block
+        let mut seen_non_phi = false;
+        for instruction in &self.instructions {
+            match instruction {
+                Instruction::Phi(_) => {
+                    if seen_non_phi {
+                        return Err("Phi node after non-phi instruction".to_string());
+                    }
+                }
+                _ => seen_non_phi = true,
+            }
+        }
+
+        // Verify phi node predecessors match block predecessors
+        for phi in &self.phi_nodes {
+            for (_, pred) in &phi.incoming_values {
+                if !self.predecessors.contains(pred) {
+                    return Err(format!("Phi node references non-predecessor block {}", pred));
+                }
+            }
+        }
+
+        Ok(())
+    }
+
+    fn verify_instruction_sequence(&self) -> Result<(), String> {
+        let mut seen_terminator = false;
+
+        for instruction in &self.instructions {
+            if seen_terminator {
+                return Err("Instructions after terminator".to_string());
+            }
+            if instruction.is_terminator() {
+                seen_terminator = true;
+            }
+        }
+
+        Ok(())
+    }
+
+    fn verify_terminator(&self) -> Result<(), String> {
+        if let Some(last) = self.instructions.last() {
+            if !last.is_terminator() {
+                return Err("Basic block does not end with terminator".to_string());
+            }
+        } else {
+            return Err("Basic block is empty".to_string());
+        }
+
+        Ok(())
+    }
+
+    pub fn to_llvm(&self) -> LLVMBasicBlock {
+        let mut llvm_block = LLVMBasicBlock::new(&self.name);
+
+        // Add phi nodes
+        for phi in &self.phi_nodes {
+            llvm_block.add_phi(phi.to_llvm());
+        }
+
+        // Add instructions
+        for instruction in &self.instructions {
+            llvm_block.add_instruction(instruction.to_llvm());
+        }
+
+        llvm_block
+    }
+
+    pub fn to_wasm(&self) -> Vec<WASMInstruction> {
+        let mut wasm_instructions = Vec::new();
+
+        // Convert phi nodes to WASM locals and assignments
+        for phi in &self.phi_nodes {
+            wasm_instructions.extend(phi.to_wasm());
+        }
+
+        // Convert instructions
+        for instruction in &self.instructions {
+            wasm_instructions.extend(instruction.to_wasm());
+        }
+
+        wasm_instructions
+    }
+
+    pub fn to_js(&self) -> String {
+        let mut js_code = String::new();
+
+        // Add block label
+        js_code.push_str(&format!("{}:\n", self.name));
+
+        // Convert phi nodes to JavaScript assignments
+        for phi in &self.phi_nodes {
+            js_code.push_str(&phi.to_js());
+            js_code.push_str("\n");
+        }
+
+        // Convert instructions
+        for instruction in &self.instructions {
+            js_code.push_str(&instruction.to_js());
+            js_code.push_str("\n");
+        }
+
+        js_code
+    }
+}
