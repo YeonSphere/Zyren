@@ -4,7 +4,7 @@ Seoggi is a modern, multi-paradigm programming language designed for building re
 
 ## Documentation
 
-📚 **All documentation has been moved to our website!**
+ **All documentation has been moved to our website!**
 
 Visit [yeonsphere.github.io/seoggi](https://yeonsphere.github.io/seoggi.html) for:
 - Installation Guide
@@ -66,11 +66,18 @@ seoc run
 
 ## License
 
-Seoggi is licensed under the MIT License. See [LICENSE](LICENSE) for details.
+This project is licensed under the YeonSphere Universal Open Source License (YUOSL). Key points:
+- Free for personal use and revenue up to $50,000 annually
+- 5% revenue share for commercial use above $50,000
+- 30-day response window for inquiries
+- Contact @daedaevibin for commercial licensing
+- See the [LICENSE](LICENSE) file for full details
 
-## Community
+## Community & Contact
 
+- Primary Contact: Jeremy Matlock (@daedaevibin)
 - Website: https://seoggi.dev
-- Discord: https://discord.gg/seoggi
+- Discord: [Join our community](https://discord.gg/yeonsphere)
 - Twitter: @seoggilang
 - GitHub: https://github.com/YeonSphere/Seoggi
+- Email: daedaevibin@naver.com
