@@ -1,0 +1,122 @@
+# Quantum state manager
+use std::quantum::*;
+use std::lib::*;
+
+# State manager for quantum system
+class StateManager {
+    states: Map<int, QuantumState>
+    max_qubits: int = 32
+    max_states: int = 1024
+    
+    new() {
+        self.states = Map::new()
+    }
+    
+    safe allocate_state(num_qubits: int) -> Result<int> {
+        # Validate qubit count
+        assert num_qubits > 0 : "Must allocate at least 1 qubit"
+        assert num_qubits <= self.max_qubits : "Qubit count exceeds maximum"
+        
+        # Check state limit
+        assert self.states.len() < self.max_states : "Maximum state count reached"
+        
+        # Create new state
+        let state_id = self.generate_state_id()
+        let state = QuantumState::new(num_qubits)
+        
+        # Initialize to |0⟩^n
+        state.initialize_zero()
+        
+        # Store state
+        self.states.insert(state_id, state)
+        Ok(state_id)
+    }
+    
+    safe get_state(state_id: int) -> Result<QuantumState> {
+        match self.states.get(state_id) {
+            Some(state) => Ok(state),
+            None => Err("State not found")
+        }
+    }
+    
+    safe apply_gate(state_id: int, gate: QuantumGate, qubits: [int]) -> Result<()> {
+        # Get state
+        let state = self.get_state(state_id)?
+        
+        # Validate qubits
+        assert qubits.len() == gate.num_qubits : "Qubit count mismatch"
+        for q in qubits {
+            assert q < state.num_qubits : "Qubit index out of range"
+        }
+        
+        # Apply gate
+        state.apply_gate(gate, qubits)
+        
+        # Check state validity
+        assert state.is_valid() : "Invalid quantum state"
+        assert state.fidelity() > 0.99 : "State fidelity too low"
+        
+        Ok(())
+    }
+    
+    safe measure(state_id: int, qubit: int) -> Result<bool> {
+        # Get state
+        let state = self.get_state(state_id)?
+        
+        # Validate qubit
+        assert qubit < state.num_qubits : "Qubit index out of range"
+        
+        # Perform measurement
+        let result = state.measure(qubit)
+        
+        # Verify state after measurement
+        assert state.is_valid() : "Invalid state after measurement"
+        
+        Ok(result)
+    }
+    
+    safe measure_all(state_id: int) -> Result<[bool]> {
+        # Get state
+        let state = self.get_state(state_id)?
+        
+        # Measure all qubits
+        let results = state.measure_all()
+        
+        # Verify final state
+        assert state.is_valid() : "Invalid state after measurement"
+        
+        Ok(results)
+    }
+    
+    safe release_state(state_id: int) -> Result<()> {
+        match self.states.remove(state_id) {
+            Some(_) => Ok(()),
+            None => Err("State not found")
+        }
+    }
+    
+    private func generate_state_id() -> int {
+        # Generate unique ID for new state
+        let mut id = random::uniform_int(0, i32::MAX)
+        while self.states.contains_key(id) {
+            id = random::uniform_int(0, i32::MAX)
+        }
+        id
+    }
+    
+    # Error tracking and debugging
+    func get_error_rate(state_id: int) -> Result<float> {
+        let state = self.get_state(state_id)?
+        Ok(1.0 - state.fidelity())
+    }
+    
+    func get_state_info(state_id: int) -> Result<StateInfo> {
+        let state = self.get_state(state_id)?
+        Ok(StateInfo {
+            num_qubits: state.num_qubits,
+            fidelity: state.fidelity(),
+            is_pure: state.is_pure(),
+            entanglement: state.entanglement_entropy()
+        })
+    }
+}

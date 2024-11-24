@@ -3,42 +3,76 @@ use std::error;
 use core::common::utils;
 
 # Basic type definitions
-type Type = enum {
-    Void,
-    Bool,
-    Int8,
-    Int16,
-    Int32,
-    Int64,
-    UInt8,
-    UInt16,
-    UInt32,
-    UInt64,
-    Float32,
-    Float64,
-    String,
-    Array(Box<Type>),
-    Tuple([Type]),
-    Function {
-        params: [Type],
-        return_type: Box<Type>
-    },
-    Struct {
-        name: string,
-        fields: [(string, Type)]
-    },
-    Enum {
-        name: string,
-        variants: [(string, [Type])]
-    },
-    Quantum {
-        size: u32
+type SeoggiType = {
+    // Basic types
+    primitive {
+        Int(bits: int)
+        Float(bits: int)
+        Bool
+        String
+    }
+
+    // Quantum types
+    quantum {
+        Qubit
+        QuantumRegister(size: int)
+        QuantumGate(num_inputs: int)
+        QuantumCircuit
+        QuantumState
+    }
+
+    // Neural types
+    neural {
+        Tensor(shape: int[])
+        NeuralNetwork
+        Layer
+        Optimizer
+        Loss
+    }
+
+    // Safety types
+    safe {
+        Assert(condition: expr, message: string)
+        Verify(predicate: expr)
+        Ensure(postcondition: expr)
+    }
+
+    // Type checking rules
+    rules {
+        // Quantum rules
+        quantum_composition(a: QuantumGate, b: QuantumGate) -> QuantumGate {
+            assert a.num_outputs == b.num_inputs : "Gate size mismatch"
+            return QuantumGate(a.num_inputs)
+        }
+
+        // Neural rules
+        tensor_matmul(a: Tensor, b: Tensor) -> Tensor {
+            assert a.shape[-1] == b.shape[0] : "Matrix dimension mismatch"
+            return Tensor([a.shape[0], b.shape[1]])
+        }
+    }
+
+    // Type inference
+    infer(expr: Expr) -> SeoggiType {
+        match expr {
+            BinaryOp(left, op, right) => {
+                left_type = infer(left)
+                right_type = infer(right)
+                validate_operation(op, left_type, right_type)
+            }
+            QuantumOp(gate, qubits) => {
+                validate_quantum_operation(gate, qubits)
+            }
+            NeuralOp(layer, input) => {
+                validate_neural_operation(layer, input)
+            }
+        }
     }
 }
 
 # Type context for managing types
 struct TypeContext {
-    types: Map<string, Type>,
+    types: Map<string, SeoggiType>,
     current_scope: u32
 }
 
@@ -52,7 +86,7 @@ impl TypeContext {
     }
     
     # Add type to context
-    fn add_type(&mut self, name: string, typ: Type) -> Result<(), error::Error> {
+    fn add_type(&mut self, name: string, typ: SeoggiType) -> Result<(), error::Error> {
         if self.types.contains_key(name) {
             return Err(error::new("Type already exists"));
         }
@@ -61,7 +95,7 @@ impl TypeContext {
     }
     
     # Get type from context
-    fn get_type(&self, name: string) -> Option<Type> {
+    fn get_type(&self, name: string) -> Option<SeoggiType> {
         self.types.get(name)
     }
     
@@ -81,17 +115,17 @@ impl TypeContext {
 }
 
 # Type checking functions
-fn check_type_compatibility(left: Type, right: Type) -> bool {
+fn check_type_compatibility(left: SeoggiType, right: SeoggiType) -> bool {
     # TODO: Implement type compatibility checking
     false
 }
 
-fn infer_type(expr: Expr) -> Result<Type, error::Error> {
+fn infer_type(expr: Expr) -> Result<SeoggiType, error::Error> {
     # TODO: Implement type inference
-    Ok(Type::Void)
+    Ok(SeoggiType::primitive::Int(bits: 32))
 }
 
-fn validate_type(typ: Type) -> Result<(), error::Error> {
+fn validate_type(typ: SeoggiType) -> Result<(), error::Error> {
     # TODO: Implement type validation
     Ok(())
 }

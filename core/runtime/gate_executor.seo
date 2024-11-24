@@ -1,0 +1,49 @@
+quantum GateExecutor {
+    // Quantum gate definitions
+    gate hadamard(qubit q) {
+        // H gate implementation
+        transform q {
+            |0⟩ -> (|0⟩ + |1⟩)/√2
+            |1⟩ -> (|0⟩ - |1⟩)/√2
+        }
+    }
+
+    gate cnot(qubit control, qubit target) {
+        // CNOT gate implementation
+        controlled transform control, target {
+            |0⟩ -> |0⟩
+            |1⟩ -> |1⊕⟩
+        }
+    }
+
+    gate phase(qubit q, real θ) {
+        // Phase rotation implementation
+        transform q {
+            |0⟩ -> |0⟩
+            |1⟩ -> exp(iθ)|1⟩
+        }
+    }
+
+    // Gate composition
+    gate toffoli(qubit c1, qubit c2, qubit target) {
+        // Toffoli gate as composition of CNOTs and H
+        hadamard(target)
+        cnot(c2, target)
+        phase(target, -π/4)
+        cnot(c1, target)
+        phase(target, π/4)
+        cnot(c2, target)
+        phase(target, -π/4)
+        cnot(c1, target)
+        phase(c2, π/4)
+        hadamard(target)
+    }
+
+    // Error checking and validation
+    safe check_valid_qubits(qubit[] qubits) {
+        assert qubits.length > 0 : "Empty qubit array"
+        for q in qubits {
+            assert q.is_initialized : "Uninitialized qubit"
+        }
+    }
+}

@@ -1,0 +1,21 @@
+# Seoggi CMake configuration file
+
+@PACKAGE_INIT@
+
+# Include dependencies
+include(CMakeFindDependencyMacro)
+
+# Include Seoggi toolchain
+include("${CMAKE_CURRENT_LIST_DIR}/seoggi-toolchain.cmake")
+
+# Set Seoggi version
+set(SEOGGI_VERSION "@PROJECT_VERSION@")
+set(SEOGGI_VERSION_MAJOR "@PROJECT_VERSION_MAJOR@")
+set(SEOGGI_VERSION_MINOR "@PROJECT_VERSION_MINOR@")
+set(SEOGGI_VERSION_PATCH "@PROJECT_VERSION_PATCH@")
+
+# Export targets
+include("${CMAKE_CURRENT_LIST_DIR}/seoggi-targets.cmake")
+
+# Set Seoggi found
+set(SEOGGI_FOUND TRUE)

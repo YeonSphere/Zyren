@@ -1,0 +1,186 @@
+// Seoggi Pass Manager
+// Manages optimization passes with zero-cost abstractions and safety guarantees
+
+import { Error } from "../error"
+import { Module } from "../ir/module"
+import { Function } from "../ir/function"
+import { Context } from "../context"
+import { Safety } from "../../safety/constraints"
+
+// Pass interface
+interface Pass {
+    name: string
+    
+    // Pass execution
+    run_on_module(module: Module) -> Result<bool, Error>
+    run_on_function(function: Function) -> Result<bool, Error>
+    
+    // Pass dependencies
+    requires() -> Vec<string>
+    invalidates() -> Vec<string>
+    
+    // Safety verification
+    verify_safety(context: Context) -> Result<(), Error>
+}
+
+// Pass manager for orchestrating optimization passes
+struct PassManager {
+    context: Context
+    passes: Vec<Pass>
+    safety_checker: Safety.Checker
+    
+    // Constructor
+    new(context: Context) -> PassManager {
+        PassManager {
+            context,
+            passes: Vec::new(),
+            safety_checker: Safety.Checker::new()
+        }
+    }
+    
+    // Pass management
+    fn add_pass(&mut self, pass: Pass) -> Result<(), Error> {
+        // Verify pass safety
+        pass.verify_safety(self.context)?
+        
+        // Check pass dependencies
+        for req in pass.requires() {
+            if !self.has_pass(req) {
+                return Err(Error::MissingPassDependency(pass.name, req))
+            }
+        }
+        
+        self.passes.push(pass)
+        Ok(())
+    }
+    
+    fn has_pass(&self, name: string) -> bool {
+        self.passes.iter().any(|p| p.name == name)
+    }
+    
+    // Pass execution
+    fn run(&mut self, module: Module) -> Result<(), Error> {
+        // Sort passes by dependencies
+        self.sort_passes()?
+        
+        // Run each pass
+        for pass in &self.passes {
+            // Verify safety constraints before pass
+            self.safety_checker.verify_all(self.context)?
+            
+            // Run the pass
+            let modified = pass.run_on_module(module.clone())?
+            
+            // If modified, verify safety again
+            if modified {
+                self.safety_checker.verify_all(self.context)?
+            }
+            
+            // Invalidate analysis results
+            for invalid in pass.invalidates() {
+                self.invalidate_analysis(invalid)?
+            }
+        }
+        
+        Ok(())
+    }
+    
+    // Pass scheduling
+    fn sort_passes(&mut self) -> Result<(), Error> {
+        // Build dependency graph
+        let mut graph = HashMap::new()
+        for pass in &self.passes {
+            let deps = pass.requires()
+            graph.insert(pass.name.clone(), deps)
+        }
+        
+        // Topological sort
+        let mut sorted = Vec::new()
+        let mut visited = HashSet::new()
+        let mut temp = HashSet::new()
+        
+        for pass in &self.passes {
+            if !visited.contains(&pass.name) {
+                self.visit_pass(&pass.name, &graph, &mut visited, &mut temp, &mut sorted)?
+            }
+        }
+        
+        // Reorder passes based on sort
+        let mut new_passes = Vec::new()
+        for name in sorted {
+            if let Some(pass) = self.passes.iter().find(|p| p.name == name) {
+                new_passes.push(pass.clone())
+            }
+        }
+        
+        self.passes = new_passes
+        Ok(())
+    }
+    
+    fn visit_pass(
+        &self,
+        name: string,
+        graph: &HashMap<string, Vec<string>>,
+        visited: &mut HashSet<string>,
+        temp: &mut HashSet<string>,
+        sorted: &mut Vec<string>
+    ) -> Result<(), Error> {
+        // Check for cycles
+        if temp.contains(name) {
+            return Err(Error::CyclicPassDependency(name))
+        }
+        
+        if visited.contains(name) {
+            return Ok(())
+        }
+        
+        temp.insert(name.clone())
+        
+        // Visit dependencies
+        if let Some(deps) = graph.get(&name) {
+            for dep in deps {
+                self.visit_pass(dep, graph, visited, temp, sorted)?
+            }
+        }
+        
+        temp.remove(&name)
+        visited.insert(name.clone())
+        sorted.push(name)
+        
+        Ok(())
+    }
+    
+    // Analysis management
+    fn invalidate_analysis(&mut self, name: string) -> Result<(), Error> {
+        // Find passes that depend on this analysis
+        let dependent_passes: Vec<_> = self.passes
+            .iter()
+            .filter(|p| p.requires().contains(&name))
+            .collect()
+        
+        // Invalidate their results
+        for pass in dependent_passes {
+            // TODO: Implement pass-specific invalidation
+        }
+        
+        Ok(())
+    }
+    
+    // Safety management
+    fn add_safety_constraint(&mut self, constraint: Safety.Constraint) {
+        self.safety_checker.add_constraint(constraint)
+    }
+    
+    // Verification
+    fn verify(&self) -> Result<(), Error> {
+        // Verify all passes
+        for pass in &self.passes {
+            pass.verify_safety(self.context)?
+        }
+        
+        // Verify safety constraints
+        self.safety_checker.verify_all(self.context)?
+        
+        Ok(())
+    }
+}

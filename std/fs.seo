@@ -1,0 +1,48 @@
+// Filesystem Module
+// Version: 0.1.0
+
+module std::fs;
+
+// Path manipulation
+pub module path {
+    pub fn stem(path: string) -> string {
+        let last_dot = path.last_index_of('.');
+        if last_dot == -1 {
+            return path;
+        }
+        return path[0..last_dot];
+    }
+
+    pub fn extension(path: string) -> string {
+        let last_dot = path.last_index_of('.');
+        if last_dot == -1 {
+            return "";
+        }
+        return path[last_dot + 1..];
+    }
+}
+
+// File operations
+pub fn exists(path: string) -> bool {
+    return __builtin_fs_exists(path);
+}
+
+pub fn read_file(path: string) -> Result<string, string> {
+    return __builtin_fs_read_file(path);
+}
+
+pub fn write_file(path: string, content: string) -> Result<void, string> {
+    return __builtin_fs_write_file(path, content);
+}
+
+pub fn remove_file(path: string) -> Result<void, string> {
+    return __builtin_fs_remove_file(path);
+}
+
+pub fn create_dir(path: string) -> Result<void, string> {
+    return __builtin_fs_create_dir(path);
+}
+
+pub fn remove_dir(path: string) -> Result<void, string> {
+    return __builtin_fs_remove_dir(path);
+}

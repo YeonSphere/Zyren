@@ -1,0 +1,41 @@
+// Process Module
+// Version: 0.1.0
+
+module std::process;
+
+// Result type for process operations
+pub type ProcessResult = struct {
+    success: bool,
+    code: i32,
+    error: string,
+};
+
+// Compile a Seoggi source file
+pub fn compile(input: string, output: string) -> ProcessResult {
+    return __builtin_process_compile(input, output);
+}
+
+// Run a compiled program
+pub fn run(program: string, args: []string) -> ProcessResult {
+    return __builtin_process_run(program, args);
+}
+
+// Execute a shell command
+pub fn exec(command: string, args: []string) -> ProcessResult {
+    return __builtin_process_exec(command, args);
+}
+
+// Get current process ID
+pub fn pid() -> i32 {
+    return __builtin_process_pid();
+}
+
+// Get parent process ID
+pub fn ppid() -> i32 {
+    return __builtin_process_ppid();
+}
+
+// Exit current process with code
+pub fn exit(code: i32) -> void {
+    __builtin_process_exit(code);
+}

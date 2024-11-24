@@ -1,0 +1,16 @@
+// Hello World with Quantum Superposition
+quantum Main {
+    // Create a single qubit in superposition
+    let circuit = QuantumCircuit(1)
+    circuit.hadamard(0)
+    
+    // Measure the qubit
+    let result = circuit.measure(0)
+    
+    // Print the classical result
+    print("Hello Quantum World!")
+    print("Measurement result: ", result)
+    
+    // Return success
+    return 0
+}

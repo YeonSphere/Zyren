@@ -1,41 +1,57 @@
+cmake_minimum_required(VERSION 3.15)
+
+# Set Seoggi file extension
+set_source_files_properties(*.seo PROPERTIES LANGUAGE Seoggi)
+
+# Enable Seoggi language support
+enable_language(Seoggi)
+
 # Quantum runtime library
-add_library(quantum_runtime SHARED
-    quantum_runtime.cpp
-    state_manager.cpp
-    gate_executor.cpp
-    error_corrector.cpp
-    decoherence_monitor.cpp
-    entanglement_tracker.cpp
-    quantum_optimizer.cpp
+add_seoggi_library(quantum_runtime
+    SOURCES
+        quantum_runtime.seo
+        state_manager.seo
+    INCLUDES
+        ${CMAKE_CURRENT_SOURCE_DIR}
+        ${CMAKE_SOURCE_DIR}/include
+    DEPENDS
+        seoggi_compiler
 )
 
-target_include_directories(quantum_runtime
-    PUBLIC
-    ${CMAKE_CURRENT_SOURCE_DIR}/include
+set_target_properties(quantum_runtime PROPERTIES
+    LINKER_LANGUAGE Seoggi
+    Seoggi_STANDARD 23
 )
 
 target_link_libraries(quantum_runtime
     PUBLIC
-    seoggi_common
+    seoggi_compiler
+    seoggi_backend
 )
 
 # Neural runtime library
-add_library(neural_runtime SHARED
-    neural_runtime.cpp
-    model_manager.cpp
-    training_engine.cpp
-    inference_engine.cpp
-    optimization_engine.cpp
+add_seoggi_library(neural_runtime
+    SOURCES
+        neural_runtime.seo
+        model_manager.seo
+        training_engine.seo
+    INCLUDES
+        ${CMAKE_CURRENT_SOURCE_DIR}
+        ${CMAKE_SOURCE_DIR}/include
+    DEPENDS
+        quantum_runtime
 )
 
-target_include_directories(neural_runtime
-    PUBLIC
-    ${CMAKE_CURRENT_SOURCE_DIR}/include
+set_target_properties(neural_runtime PROPERTIES
+    LINKER_LANGUAGE Seoggi
+    Seoggi_STANDARD 23
 )
 
 target_link_libraries(neural_runtime
     PUBLIC
-    seoggi_common
+    quantum_runtime
+    seoggi_compiler
+    seoggi_backend
 )
 
 # Install targets

@@ -13,16 +13,17 @@ OPTIMIZATION_LEVEL=${OPTIMIZATION_LEVEL:-"quantum"}
 
 # Command definitions
 COMMANDS=(
-    "build:     Compile Seoggi source files"
-    "run:       Execute Seoggi programs"
-    "repl:      Start interactive REPL"
-    "test:      Run test suite"
-    "quantum:   Quantum computing operations"
-    "ai:        AI and neural network operations"
-    "install:   Install packages and dependencies"
-    "new:       Create new Seoggi project"
-    "doc:       Generate documentation"
-    "lint:      Check code style and safety"
+    "b:         Build project"
+    "r:         Run code"
+    "x:         Execute command"
+    "t:         Run tests"
+    "q:         Quantum ops"
+    "i:         Install deps"
+    "n:         New project"
+    "d:         Docs"
+    "l:         Lint"
+    "f:         Format"
+    "c:         Check"
 )
 
 # Help message
@@ -287,45 +288,49 @@ lint_code() {
 
 # Parse command line arguments
 case "$1" in
-    "build")
+    "b")
         shift
         build_project "$@"
         ;;
-    "run")
+    "r")
         shift
         run_program "$@"
         ;;
-    "repl")
+    "x")
         shift
         start_repl "$@"
         ;;
-    "test")
+    "t")
         shift
         run_tests "$@"
         ;;
-    "quantum")
+    "q")
         shift
         quantum_ops "$@"
         ;;
-    "ai")
-        shift
-        ai_ops "$@"
-        ;;
-    "install")
+    "i")
         shift
         install_packages "$@"
         ;;
-    "new")
+    "n")
         shift
         create_project "$@"
         ;;
-    "doc")
+    "d")
         shift
         generate_docs "$@"
         ;;
-    "lint")
+    "l")
         shift
         lint_code "$@"
+        ;;
+    "f")
+        shift
+        echo "Formatting code..."
+        ;;
+    "c")
+        shift
+        echo "Checking code..."
         ;;
     "--help"|"-h"|"")
         show_help

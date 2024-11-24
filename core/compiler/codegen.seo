@@ -313,6 +313,86 @@ module Compiler::CodeGen {
             Ok(())
         }
 
+        // Quantum code generation
+        func generate_quantum_code(&mut self, gate: QuantumGateDecl) -> Result<String> {
+            let mut code = String::new();
+            
+            // Generate gate header
+            code.push_str(&format!("quantum_gate {} {{\n", gate.name));
+            
+            // Generate qubit parameters
+            for param in gate.params {
+                code.push_str(&format!("    qubit {}\n", param.name));
+            }
+            
+            // Generate transform block
+            code.push_str("    transform {\n");
+            for state in gate.transform_block.quantum_state_list {
+                code.push_str(&format!("        |{}⟩ -> {}\n", 
+                    state.binary,
+                    generate_quantum_expr(state.quantum_expression)?
+                ));
+            }
+            code.push_str("    }\n");
+            
+            code.push_str("}\n");
+            Ok(code)
+        }
+
+        // Neural code generation
+        func generate_neural_code(&mut self, layer: NeuralLayerDecl) -> Result<String> {
+            let mut code = String::new();
+            
+            // Generate layer header
+            code.push_str(&format!("neural_layer {} {{\n", layer.name));
+            
+            // Generate parameters
+            for param in layer.params {
+                code.push_str(&format!("    {} {}\n", param.type, param.name));
+            }
+            
+            // Generate forward pass
+            code.push_str("    forward {\n");
+            for stmt in layer.forward_def.statement_list {
+                code.push_str(&format!("        {}\n", generate_statement(stmt)?));
+            }
+            code.push_str("    }\n");
+            
+            // Generate backward pass
+            code.push_str("    backward {\n");
+            for stmt in layer.backward_def.statement_list {
+                code.push_str(&format!("        {}\n", generate_statement(stmt)?));
+            }
+            code.push_str("    }\n");
+            
+            code.push_str("}\n");
+            Ok(code)
+        }
+
+        // Safety code generation
+        func generate_safe_code(&mut self, safe_block: SafeBlockDecl) -> Result<String> {
+            let mut code = String::new();
+            
+            // Generate safe block header
+            code.push_str(&format!("safe {} {{\n", safe_block.name));
+            
+            // Generate assertions
+            for assertion in safe_block.assertion_list {
+                code.push_str(&format!("    assert {} : \"{}\"\n",
+                    generate_expression(assertion.expr)?,
+                    assertion.message
+                ));
+            }
+            
+            // Generate statements
+            for stmt in safe_block.statement_list {
+                code.push_str(&format!("    {}\n", generate_statement(stmt)?));
+            }
+            
+            code.push_str("}\n");
+            Ok(code)
+        }
+
         // Debug information generation
         func generate_debug_info(&mut self) -> Result<()> {
             if !self.debug_info {

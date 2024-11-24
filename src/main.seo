@@ -1,0 +1,118 @@
+// Seoggi CLI Interface
+// Version: 0.1.0
+
+import std::io;
+import std::args;
+import std::fs;
+import std::process;
+
+// CLI command handlers
+fn handle_version() -> void {
+    io::println("Seoggi v0.1.0");
+    io::println("The Zero-Cost Quantum Programming Language");
+}
+
+fn handle_build(args: []string) -> i32 {
+    if args.len() < 1 {
+        io::eprintln("Error: No input file specified");
+        io::eprintln("Usage: seo build <file.seo>");
+        return 1;
+    }
+
+    let input_file = args[0];
+    if !fs::exists(input_file) {
+        io::eprintln("Error: File not found: {}", input_file);
+        return 1;
+    }
+
+    // Compile the file using the bootstrap compiler for now
+    let output = fs::path::stem(input_file);
+    let result = process::compile(input_file, output);
+    
+    if !result.success {
+        io::eprintln("Compilation failed: {}", result.error);
+        return 1;
+    }
+    
+    io::println("Successfully built: {}", output);
+    return 0;
+}
+
+fn handle_exec(args: []string) -> i32 {
+    if args.len() < 1 {
+        io::eprintln("Error: No input file specified");
+        io::eprintln("Usage: seo exec <file.seo> [args...]");
+        return 1;
+    }
+
+    let input_file = args[0];
+    if !fs::exists(input_file) {
+        io::eprintln("Error: File not found: {}", input_file);
+        return 1;
+    }
+
+    // First build the file
+    let output = fs::path::stem(input_file);
+    let build_result = process::compile(input_file, output);
+    
+    if !build_result.success {
+        io::eprintln("Compilation failed: {}", build_result.error);
+        return 1;
+    }
+
+    // Then execute it with remaining args
+    let exec_args = args[1..];
+    let exec_result = process::run(output, exec_args);
+    
+    if !exec_result.success {
+        io::eprintln("Execution failed: {}", exec_result.error);
+        return 1;
+    }
+    
+    return exec_result.code;
+}
+
+fn handle_help() -> void {
+    io::println("Seoggi - The Zero-Cost Quantum Programming Language");
+    io::println("");
+    io::println("Usage:");
+    io::println("  seo <command> [arguments]");
+    io::println("");
+    io::println("Commands:");
+    io::println("  build <file.seo>       Build a Seoggi source file");
+    io::println("  exec <file.seo> [args]  Build and execute a Seoggi program");
+    io::println("  version                Show version information");
+    io::println("  help                   Show this help message");
+}
+
+fn main(args: []string) -> i32 {
+    if args.len() < 2 {
+        handle_help();
+        return 1;
+    }
+
+    let command = args[1];
+    let command_args = args[2..];
+
+    match command {
+        "version" => {
+            handle_version();
+            return 0;
+        }
+        "build" => {
+            return handle_build(command_args);
+        }
+        "exec" => {
+            return handle_exec(command_args);
+        }
+        "help" => {
+            handle_help();
+            return 0;
+        }
+        _ => {
+            io::eprintln("Unknown command: {}", command);
+            io::eprintln("Run 'seo help' for usage information");
+            return 1;
+        }
+    }
+}

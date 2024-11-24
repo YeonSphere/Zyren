@@ -1,0 +1,230 @@
+// Constant Folding Pass
+// Evaluates constant expressions at compile-time with safety guarantees
+
+import { Error } from "../error"
+import { Module } from "../ir/module"
+import { Function } from "../ir/function"
+import { BasicBlock } from "../ir/basic_block"
+import { Instruction } from "../ir/instruction"
+import { Value } from "../ir/value"
+import { Type } from "../ir/type"
+import { Context } from "../context"
+import { Safety } from "../../safety/constraints"
+import { Pass } from "./pass_manager"
+
+struct ConstantFolder : Pass {
+    context: Context
+    safety_checker: Safety.Checker
+    
+    // Constructor
+    new(context: Context) -> ConstantFolder {
+        ConstantFolder {
+            name: "constant_folding",
+            context,
+            safety_checker: Safety.Checker::new()
+        }
+    }
+    
+    // Pass interface implementation
+    impl Pass for ConstantFolder {
+        fn run_on_module(module: Module) -> Result<bool, Error> {
+            let mut modified = false
+            
+            // Process each function
+            for function in module.functions() {
+                modified |= self.run_on_function(function)?
+            }
+            
+            Ok(modified)
+        }
+        
+        fn run_on_function(function: Function) -> Result<bool, Error> {
+            let mut modified = false
+            
+            // Process each block
+            for block in function.blocks() {
+                modified |= self.fold_constants_in_block(block)?
+            }
+            
+            Ok(modified)
+        }
+        
+        fn requires() -> Vec<string> {
+            vec![] // No dependencies
+        }
+        
+        fn invalidates() -> Vec<string> {
+            vec!["instruction_numbering"]
+        }
+        
+        fn verify_safety(context: Context) -> Result<(), Error> {
+            // Verify that folding preserves program semantics
+            self.safety_checker.verify_all(context)
+        }
+    }
+    
+    // Constant folding implementation
+    fn fold_constants_in_block(&mut self, block: BasicBlock) -> Result<bool, Error> {
+        let mut modified = false
+        let mut folded_insts = Vec::new()
+        
+        // Find constant expressions
+        for inst in block.instructions() {
+            if let Some(constant) = self.evaluate_constant(inst)? {
+                folded_insts.push((inst, constant))
+            }
+        }
+        
+        // Replace constant expressions with their values
+        for (inst, constant) in folded_insts {
+            // Verify safety of folding
+            self.verify_safe_to_fold(inst, constant)?
+            
+            // Replace instruction with constant
+            block.replace_instruction(inst, constant)?
+            modified = true
+        }
+        
+        Ok(modified)
+    }
+    
+    // Constant evaluation
+    fn evaluate_constant(&self, inst: Instruction) -> Result<Option<Value>, Error> {
+        match inst {
+            // Arithmetic operations
+            Instruction::Add { lhs, rhs, .. } => self.evaluate_binary_op(lhs, rhs, |a, b| a + b),
+            Instruction::Sub { lhs, rhs, .. } => self.evaluate_binary_op(lhs, rhs, |a, b| a - b),
+            Instruction::Mul { lhs, rhs, .. } => self.evaluate_binary_op(lhs, rhs, |a, b| a * b),
+            Instruction::Div { lhs, rhs, .. } => {
+                // Special handling for division by zero
+                if self.is_zero_constant(rhs) {
+                    return Ok(None)
+                }
+                self.evaluate_binary_op(lhs, rhs, |a, b| a / b)
+            },
+            
+            // Bitwise operations
+            Instruction::And { lhs, rhs, .. } => self.evaluate_binary_op(lhs, rhs, |a, b| a & b),
+            Instruction::Or { lhs, rhs, .. } => self.evaluate_binary_op(lhs, rhs, |a, b| a | b),
+            Instruction::Xor { lhs, rhs, .. } => self.evaluate_binary_op(lhs, rhs, |a, b| a ^ b),
+            
+            // Comparison operations
+            Instruction::Eq { lhs, rhs, .. } => self.evaluate_comparison(lhs, rhs, |a, b| a == b),
+            Instruction::Ne { lhs, rhs, .. } => self.evaluate_comparison(lhs, rhs, |a, b| a != b),
+            Instruction::Lt { lhs, rhs, .. } => self.evaluate_comparison(lhs, rhs, |a, b| a < b),
+            Instruction::Le { lhs, rhs, .. } => self.evaluate_comparison(lhs, rhs, |a, b| a <= b),
+            Instruction::Gt { lhs, rhs, .. } => self.evaluate_comparison(lhs, rhs, |a, b| a > b),
+            Instruction::Ge { lhs, rhs, .. } => self.evaluate_comparison(lhs, rhs, |a, b| a >= b),
+            
+            // Cast operations
+            Instruction::Cast { value, target_type, .. } => self.evaluate_cast(value, target_type),
+            
+            // Other instructions cannot be constant folded
+            _ => Ok(None)
+        }
+    }
+    
+    // Helper methods
+    fn evaluate_binary_op<F>(
+        &self,
+        lhs: Value,
+        rhs: Value,
+        op: F
+    ) -> Result<Option<Value>, Error>
+    where
+        F: Fn(i64, i64) -> i64
+    {
+        match (self.get_constant_value(lhs), self.get_constant_value(rhs)) {
+            (Some(l), Some(r)) => {
+                let result = op(l, r)
+                Ok(Some(Value::Constant(result)))
+            },
+            _ => Ok(None)
+        }
+    }
+    
+    fn evaluate_comparison<F>(
+        &self,
+        lhs: Value,
+        rhs: Value,
+        op: F
+    ) -> Result<Option<Value>, Error>
+    where
+        F: Fn(i64, i64) -> bool
+    {
+        match (self.get_constant_value(lhs), self.get_constant_value(rhs)) {
+            (Some(l), Some(r)) => {
+                let result = op(l, r)
+                Ok(Some(Value::Boolean(result)))
+            },
+            _ => Ok(None)
+        }
+    }
+    
+    fn evaluate_cast(
+        &self,
+        value: Value,
+        target_type: Type
+    ) -> Result<Option<Value>, Error> {
+        if let Some(constant) = self.get_constant_value(value) {
+            // Verify cast safety
+            if !value.type().can_cast_to(target_type) {
+                return Ok(None)
+            }
+            
+            // Perform cast
+            let result = match target_type {
+                Type::I8 => constant as i8 as i64,
+                Type::I16 => constant as i16 as i64,
+                Type::I32 => constant as i32 as i64,
+                Type::I64 => constant,
+                Type::U8 => constant as u8 as i64,
+                Type::U16 => constant as u16 as i64,
+                Type::U32 => constant as u32 as i64,
+                Type::U64 => constant as u64 as i64,
+                _ => return Ok(None)
+            };
+            
+            Ok(Some(Value::Constant(result)))
+        } else {
+            Ok(None)
+        }
+    }
+    
+    fn get_constant_value(&self, value: Value) -> Option<i64> {
+        match value {
+            Value::Constant(c) => Some(c),
+            Value::Boolean(b) => Some(if b { 1 } else { 0 }),
+            _ => None
+        }
+    }
+    
+    fn is_zero_constant(&self, value: Value) -> bool {
+        match self.get_constant_value(value) {
+            Some(0) => true,
+            _ => false
+        }
+    }
+    
+    // Safety verification
+    fn verify_safe_to_fold(
+        &self,
+        inst: Instruction,
+        constant: Value
+    ) -> Result<(), Error> {
+        // Verify no critical side effects
+        if inst.has_critical_side_effects() {
+            return Err(Error::UnsafeFolding(inst))
+        }
+        
+        // Verify type safety
+        if !constant.type().is_compatible_with(inst.type()) {
+            return Err(Error::TypeMismatch(constant.type(), inst.type()))
+        }
+        
+        // Verify value safety
+        self.safety_checker.verify_constant_value(constant)?
+        
+        Ok(())
+    }
+}

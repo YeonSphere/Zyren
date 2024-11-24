@@ -103,273 +103,202 @@ module Compiler::Parser {
                 self.region_declaration()
             } else if self.match_token(TokenType::Actor) {
                 self.actor_declaration()
+            } else if self.match_token(TokenType::Gate) {
+                self.quantum_gate_declaration()
+            } else if self.match_token(TokenType::Layer) {
+                self.neural_layer_declaration()
+            } else if self.match_token(TokenType::Safe) {
+                self.safe_block_declaration()
             } else {
                 self.statement()
             }
         }
 
-        // Class parsing
-        func class_declaration(&mut self) -> Result<Declaration> {
-            let name = self.consume(TokenType::Identifier, "Expected class name")?;
-            let mut class = ClassDecl::new(name.lexeme);
-            
-            // Parse generics
-            if self.match_token(TokenType::Less) {
-                class.generics = self.generic_parameters()?;
-            }
-            
-            // Parse inheritance
-            if self.match_token(TokenType::Extends) {
-                class.superclass = Some(self.type_expression()?);
-            }
-            
-            if self.match_token(TokenType::Implements) {
-                class.interfaces = self.separated_list(TokenType::Comma, |p| p.type_expression())?;
-            }
-            
-            // Parse effects
-            if self.match_token(TokenType::With) {
-                class.effects = self.effect_list()?;
-            }
-            
-            // Parse class body
-            self.consume(TokenType::LeftBrace, "Expected '{' before class body")?;
-            
-            while !self.check(TokenType::RightBrace) && !self.is_at_end() {
-                match self.class_member()? {
-                    ClassMember::Field(f) => class.fields.push(f),
-                    ClassMember::Method(m) => class.methods.push(m),
-                    ClassMember::Constructor(c) => class.constructors.push(c),
-                }
-            }
-            
-            self.consume(TokenType::RightBrace, "Expected '}' after class body")?;
-            
-            Ok(Declaration::Class(class))
+        // Quantum gate parsing
+        func quantum_gate_declaration(&mut self) -> Result<Declaration> {
+            let name = self.consume(TokenType::Identifier, "Expected gate name")?;
+            let params = self.parse_params()?;
+            self.consume(TokenType::LeftBrace, "Expected '{' before gate body")?;
+            let transform_block = self.parse_transform_block()?;
+            self.consume(TokenType::RightBrace, "Expected '}' after gate body")?;
+            Ok(Declaration::QuantumGate(QuantumGateDecl {
+                name: name.lexeme,
+                params,
+                transform_block,
+            }))
         }
 
-        // Trait parsing
-        func trait_declaration(&mut self) -> Result<Declaration> {
-            let name = self.consume(TokenType::Identifier, "Expected trait name")?;
-            let mut trait_decl = TraitDecl::new(name.lexeme);
-            
-            // Parse generics
-            if self.match_token(TokenType::Less) {
-                trait_decl.generics = self.generic_parameters()?;
-            }
-            
-            // Parse super traits
-            if self.match_token(TokenType::Extends) {
-                trait_decl.supertraits = self.separated_list(TokenType::Comma, |p| p.type_expression())?;
-            }
-            
-            // Parse associated types
-            if self.match_token(TokenType::Where) {
-                trait_decl.associated_types = self.associated_type_list()?;
-            }
-            
-            // Parse trait body
-            self.consume(TokenType::LeftBrace, "Expected '{' before trait body")?;
-            
-            while !self.check(TokenType::RightBrace) && !self.is_at_end() {
-                trait_decl.body.push(self.trait_member()?);
-            }
-            
-            self.consume(TokenType::RightBrace, "Expected '}' after trait body")?;
-            
-            Ok(Declaration::Trait(trait_decl))
+        // Transform block parsing
+        func parse_transform_block(&mut self) -> Result<TransformBlock> {
+            self.consume(TokenType::Transform, "Expected 'transform' keyword")?;
+            let qubit_list = self.parse_qubit_list()?;
+            self.consume(TokenType::LeftBrace, "Expected '{' before transform body")?;
+            let quantum_state_list = self.parse_quantum_state_list()?;
+            self.consume(TokenType::RightBrace, "Expected '}' after transform body")?;
+            Ok(TransformBlock {
+                qubit_list,
+                quantum_state_list,
+            })
         }
 
-        // Effect parsing
-        func effect_declaration(&mut self) -> Result<Declaration> {
-            let name = self.consume(TokenType::Identifier, "Expected effect name")?;
-            let mut effect = EffectDecl::new(name.lexeme);
-            
-            // Parse effect parameters
-            if self.match_token(TokenType::Less) {
-                effect.params = self.type_parameter_list()?;
+        // Quantum state list parsing
+        func parse_quantum_state_list(&mut self) -> Result<Vector<QuantumStateTransform>> {
+            let mut list = Vector::new();
+            while !self.check(TokenType::RightBrace) {
+                list.push(self.parse_quantum_state_transform()?);
             }
-            
-            // Parse effect body
-            self.consume(TokenType::LeftBrace, "Expected '{' before effect body")?;
-            
-            while !self.check(TokenType::RightBrace) && !self.is_at_end() {
-                effect.operations.push(self.function_declaration()?);
-            }
-            
-            self.consume(TokenType::RightBrace, "Expected '}' after effect body")?;
-            
-            Ok(Declaration::Effect(effect))
+            Ok(list)
         }
 
-        // Linear type parsing
-        func linear_type_declaration(&mut self) -> Result<Declaration> {
-            let name = self.consume(TokenType::Identifier, "Expected linear type name")?;
-            let mut linear_type = LinearTypeDecl::new(name.lexeme);
-            
-            // Parse generics
-            if self.match_token(TokenType::Less) {
-                linear_type.generics = self.generic_parameters()?;
-            }
-            
-            // Parse linear type body
-            self.consume(TokenType::LeftBrace, "Expected '{' before linear type body")?;
-            
-            while !self.check(TokenType::RightBrace) && !self.is_at_end() {
-                linear_type.operations.push(self.linear_operation()?);
-            }
-            
-            self.consume(TokenType::RightBrace, "Expected '}' after linear type body")?;
-            
-            Ok(Declaration::LinearType(linear_type))
+        // Quantum state transform parsing
+        func parse_quantum_state_transform(&mut self) -> Result<QuantumStateTransform> {
+            self.consume(TokenType::Bar, "Expected '|' character")?;
+            let binary = self.consume(TokenType::Binary, "Expected binary literal")?;
+            self.consume(TokenType::Rangle, "Expected '⟩' character")?;
+            self.consume(TokenType::Arrow, "Expected '->' operator")?;
+            let quantum_expression = self.parse_quantum_expression()?;
+            Ok(QuantumStateTransform {
+                binary: binary.lexeme,
+                quantum_expression,
+            })
         }
 
-        // Region parsing
-        func region_declaration(&mut self) -> Result<Declaration> {
-            let name = self.consume(TokenType::Identifier, "Expected region name")?;
-            let mut region = RegionDecl::new(name.lexeme);
-            
-            // Parse region lifetime
-            if self.match_token(TokenType::Less) {
-                region.lifetime = Some(self.parse_lifetime()?);
+        // Quantum expression parsing
+        func parse_quantum_expression(&mut self) -> Result<QuantumExpression> {
+            let mut expr = self.parse_quantum_term()?;
+            while self.match_token(TokenType::Plus) {
+                let term = self.parse_quantum_term()?;
+                expr = QuantumExpression::Add(Box::new(expr), Box::new(term));
+            } else if self.match_token(TokenType::Minus) {
+                let term = self.parse_quantum_term()?;
+                expr = QuantumExpression::Sub(Box::new(expr), Box::new(term));
             }
-            
-            // Parse region constraints
-            if self.match_token(TokenType::Where) {
-                region.constraints = self.parse_constraints()?;
-            }
-            
-            // Parse region body
-            self.consume(TokenType::LeftBrace, "Expected '{' before region body")?;
-            
-            region.body = self.parse_block()?;
-            
-            self.consume(TokenType::RightBrace, "Expected '}' after region body")?;
-            
-            Ok(Declaration::Region(region))
+            Ok(expr)
         }
 
-        // Actor parsing
-        func actor_declaration(&mut self) -> Result<Declaration> {
-            let name = self.consume(TokenType::Identifier, "Expected actor name")?;
-            let mut actor = ActorDecl::new(name.lexeme);
-            
-            // Parse actor state
-            self.consume(TokenType::LeftBrace, "Expected '{' before actor state")?;
-            
-            while !self.check(TokenType::RightBrace) && !self.is_at_end() {
-                match self.current_token()?.type {
-                    TokenType::Let | TokenType::Var => actor.state.push(self.parse_variable()?),
-                    TokenType::Message => actor.messages.push(self.parse_message()?),
-                    TokenType::Behavior => actor.behaviors.push(self.parse_behavior()?),
-                    _ => return Err(self.error("Expected state, message, or behavior declaration")),
-                }
+        // Quantum term parsing
+        func parse_quantum_term(&mut self) -> Result<QuantumExpression> {
+            let mut term = self.parse_quantum_factor()?;
+            while self.match_token(TokenType::Star) {
+                let factor = self.parse_quantum_factor()?;
+                term = QuantumExpression::Mul(Box::new(term), Box::new(factor));
+            } else if self.match_token(TokenType::Slash) {
+                let factor = self.parse_quantum_factor()?;
+                term = QuantumExpression::Div(Box::new(term), Box::new(factor));
             }
-            
-            self.consume(TokenType::RightBrace, "Expected '}' after actor state")?;
-            
-            Ok(Declaration::Actor(actor))
+            Ok(term)
         }
 
-        // Pattern matching
-        func pattern(&mut self) -> Result<Pattern> {
-            if self.match_token(TokenType::Underscore) {
-                Ok(Pattern::Wildcard)
+        // Quantum factor parsing
+        func parse_quantum_factor(&mut self) -> Result<QuantumExpression> {
+            if self.match_token(TokenType::ComplexNumber) {
+                let complex_number = self.previous_token()?.lexeme;
+                self.consume(TokenType::Bar, "Expected '|' character")?;
+                let binary = self.consume(TokenType::Binary, "Expected binary literal")?;
+                self.consume(TokenType::Rangle, "Expected '⟩' character")?;
+                Ok(QuantumExpression::ComplexNumber(complex_number, binary))
             } else if self.match_token(TokenType::LeftParen) {
-                self.tuple_pattern()
-            } else if self.match_token(TokenType::Identifier) {
-                let name = self.previous.lexeme.clone();
-                
-                if self.match_token(TokenType::LeftParen) {
-                    // Constructor pattern
-                    let patterns = self.separated_list(TokenType::Comma, |p| p.pattern())?;
-                    self.consume(TokenType::RightParen, "Expected ')' after constructor pattern")?;
-                    Ok(Pattern::Constructor(name, patterns))
-                } else {
-                    // Variable binding pattern
-                    if self.match_token(TokenType::At) {
-                        let sub_pattern = self.pattern()?;
-                        Ok(Pattern::Binding(name, Some(Box::new(sub_pattern))))
-                    } else {
-                        Ok(Pattern::Binding(name, None))
-                    }
-                }
-            } else if self.match_token(TokenType::Bar) {
-                // Or pattern
-                let mut patterns = vec![self.pattern()?];
-                while self.match_token(TokenType::Bar) {
-                    patterns.push(self.pattern()?);
-                }
-                Ok(Pattern::Or(patterns))
+                let expr = self.parse_quantum_expression()?;
+                self.consume(TokenType::RightParen, "Expected ')' character")?;
+                Ok(expr)
             } else {
-                // Literal pattern
-                let expr = self.primary()?;
-                Ok(Pattern::Literal(expr))
+                Err(self.error("Expected quantum factor"))
             }
         }
 
-        // Type system
-        func type_expression(&mut self) -> Result<TypeExpr> {
-            let start_pos = self.current.pos;
-            let kind = if self.match_token(TokenType::Identifier) {
-                let name = self.previous.lexeme.clone();
-                
-                if self.match_token(TokenType::Less) {
-                    // Generic type
-                    let params = self.separated_list(TokenType::Comma, |p| p.type_expression())?;
-                    self.consume(TokenType::Greater, "Expected '>' after type parameters")?;
-                    TypeKind::Named(Identifier::new(&name), params)
-                } else {
-                    TypeKind::Named(Identifier::new(&name), vec![])
-                }
-            } else if self.match_token(TokenType::LeftParen) {
-                // Tuple or function type
-                let mut params = vec![self.type_expression()?];
-                
-                while self.match_token(TokenType::Comma) {
-                    if self.check(TokenType::RightParen) {
-                        break;
-                    }
-                    params.push(self.type_expression()?);
-                }
-                
-                self.consume(TokenType::RightParen, "Expected ')' after type parameters")?;
-                
-                if self.match_token(TokenType::Arrow) {
-                    // Function type
-                    let return_type = Box::new(self.type_expression()?);
-                    let effects = if self.match_token(TokenType::With) {
-                        self.effect_list()?
-                    } else {
-                        vec![]
-                    };
-                    TypeKind::Function(params, return_type, effects)
-                } else {
-                    // Tuple type
-                    TypeKind::Tuple(params)
-                }
-            } else if self.match_token(TokenType::LeftBracket) {
-                // Array type
-                let element_type = Box::new(self.type_expression()?);
-                let size = if self.match_token(TokenType::Semicolon) {
-                    Some(Box::new(self.expression()?))
-                } else {
-                    None
-                };
-                self.consume(TokenType::RightBracket, "Expected ']' after array type")?;
-                TypeKind::Array(element_type, size)
-            } else if self.match_token(TokenType::Ampersand) {
-                // Reference type
-                let is_mutable = self.match_token(TokenType::Mut);
-                let referenced_type = Box::new(self.type_expression()?);
-                TypeKind::Reference(referenced_type, is_mutable)
-            } else {
-                return Err(ParserError::ExpectedTypeExpression(self.current));
-            };
-            
-            Ok(TypeExpr {
-                kind,
-                pos: start_pos,
+        // Neural layer parsing
+        func neural_layer_declaration(&mut self) -> Result<Declaration> {
+            let name = self.consume(TokenType::Identifier, "Expected layer name")?;
+            let params = self.parse_params()?;
+            self.consume(TokenType::LeftBrace, "Expected '{' before layer body")?;
+            let forward_def = self.parse_forward_def()?;
+            let backward_def = self.parse_backward_def()?;
+            let weight_init = self.parse_weight_init()?;
+            self.consume(TokenType::RightBrace, "Expected '}' after layer body")?;
+            Ok(Declaration::NeuralLayer(NeuralLayerDecl {
+                name: name.lexeme,
+                params,
+                forward_def,
+                backward_def,
+                weight_init,
+            }))
+        }
+
+        // Forward definition parsing
+        func parse_forward_def(&mut self) -> Result<ForwardDef> {
+            self.consume(TokenType::Forward, "Expected 'forward' keyword")?;
+            let params = self.parse_params()?;
+            self.consume(TokenType::Arrow, "Expected '->' operator")?;
+            let return_type = self.parse_type()?;
+            self.consume(TokenType::LeftBrace, "Expected '{' before forward body")?;
+            let statement_list = self.parse_statement_list()?;
+            self.consume(TokenType::RightBrace, "Expected '}' after forward body")?;
+            Ok(ForwardDef {
+                params,
+                return_type,
+                statement_list,
+            })
+        }
+
+        // Backward definition parsing
+        func parse_backward_def(&mut self) -> Result<BackwardDef> {
+            self.consume(TokenType::Backward, "Expected 'backward' keyword")?;
+            let params = self.parse_params()?;
+            self.consume(TokenType::Arrow, "Expected '->' operator")?;
+            let return_type = self.parse_type()?;
+            self.consume(TokenType::LeftBrace, "Expected '{' before backward body")?;
+            let statement_list = self.parse_statement_list()?;
+            self.consume(TokenType::RightBrace, "Expected '}' after backward body")?;
+            Ok(BackwardDef {
+                params,
+                return_type,
+                statement_list,
+            })
+        }
+
+        // Weight initialization parsing
+        func parse_weight_init(&mut self) -> Result<WeightInit> {
+            self.consume(TokenType::WeightInit, "Expected 'weight_init' keyword")?;
+            let init = self.parse_expression()?;
+            Ok(WeightInit {
+                init,
+            })
+        }
+
+        // Safe block parsing
+        func safe_block_declaration(&mut self) -> Result<Declaration> {
+            let name = self.consume(TokenType::Identifier, "Expected safe block name")?;
+            let params = self.parse_params()?;
+            self.consume(TokenType::LeftBrace, "Expected '{' before safe block body")?;
+            let assertion_list = self.parse_assertion_list()?;
+            let statement_list = self.parse_statement_list()?;
+            self.consume(TokenType::RightBrace, "Expected '}' after safe block body")?;
+            Ok(Declaration::SafeBlock(SafeBlockDecl {
+                name: name.lexeme,
+                params,
+                assertion_list,
+                statement_list,
+            }))
+        }
+
+        // Assertion list parsing
+        func parse_assertion_list(&mut self) -> Result<Vector<Assertion>> {
+            let mut list = Vector::new();
+            while self.match_token(TokenType::Assert) {
+                list.push(self.parse_assertion()?);
+            }
+            Ok(list)
+        }
+
+        // Assertion parsing
+        func parse_assertion(&mut self) -> Result<Assertion> {
+            self.consume(TokenType::Assert, "Expected 'assert' keyword")?;
+            let expr = self.parse_expression()?;
+            self.consume(TokenType::Colon, "Expected ':' operator")?;
+            let message = self.consume(TokenType::StringLiteral, "Expected string literal")?;
+            Ok(Assertion {
+                expr,
+                message: message.lexeme,
             })
         }
 

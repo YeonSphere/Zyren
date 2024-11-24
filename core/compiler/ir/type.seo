@@ -1,0 +1,361 @@
+// Seoggi IR Type System
+// Implements zero-cost type abstractions with compile-time verification
+
+import { Error } from "../error"
+import { Value } from "./value"
+import { Module } from "./module"
+import { Context } from "../context"
+import { Safety } from "../../safety/constraints"
+
+// Base type interface
+interface Type {
+    // Core type properties
+    name: string
+    size: u64
+    align: u64
+    
+    // Type verification
+    verify(context: Context) -> Result<(), Error>
+    
+    // Type compatibility
+    is_compatible_with(other: Type) -> bool
+    can_cast_to(target: Type) -> bool
+    
+    // Memory management
+    requires_drop() -> bool
+    has_destructor() -> bool
+}
+
+// Primitive types
+struct PrimitiveType : Type {
+    kind: PrimitiveKind
+    
+    // Constructor
+    new(kind: PrimitiveKind) -> PrimitiveType {
+        PrimitiveType {
+            name: kind.to_string(),
+            size: kind.size(),
+            align: kind.align(),
+            kind
+        }
+    }
+    
+    // Type interface implementation
+    impl Type for PrimitiveType {
+        fn verify(context: Context) -> Result<(), Error> {
+            Ok(()) // Primitives are always valid
+        }
+        
+        fn is_compatible_with(other: Type) -> bool {
+            match other {
+                PrimitiveType(p) => self.kind.is_compatible_with(p.kind),
+                _ => false
+            }
+        }
+        
+        fn can_cast_to(target: Type) -> bool {
+            match target {
+                PrimitiveType(p) => self.kind.can_cast_to(p.kind),
+                _ => false
+            }
+        }
+        
+        fn requires_drop() -> bool { false }
+        fn has_destructor() -> bool { false }
+    }
+}
+
+// Composite types
+struct CompositeType : Type {
+    fields: Vec<Field>
+    methods: Vec<Method>
+    constraints: Vec<Safety.Constraint>
+    
+    // Constructor
+    new() -> CompositeType {
+        CompositeType {
+            name: "",
+            size: 0,
+            align: 0,
+            fields: Vec::new(),
+            methods: Vec::new(),
+            constraints: Vec::new()
+        }
+    }
+    
+    // Builder methods
+    fn add_field(&mut self, name: string, type: Type) -> Result<(), Error> {
+        // Verify field compatibility
+        for field in self.fields {
+            if !field.type.is_compatible_with(type) {
+                return Err(Error::IncompatibleTypes(field.type, type))
+            }
+        }
+        
+        self.fields.push(Field { name, type })
+        self.recalculate_layout()
+        Ok(())
+    }
+    
+    fn add_method(&mut self, name: string, signature: FunctionType) -> Result<(), Error> {
+        self.methods.push(Method { name, signature })
+        Ok(())
+    }
+    
+    fn add_constraint(&mut self, constraint: Safety.Constraint) {
+        self.constraints.push(constraint)
+    }
+    
+    // Layout calculation
+    fn recalculate_layout(&mut self) {
+        let mut size = 0
+        let mut align = 1
+        
+        for field in self.fields {
+            // Calculate padding
+            let field_align = field.type.align
+            let padding = (size + field_align - 1) & !(field_align - 1)
+            size = padding + field.type.size
+            align = max(align, field_align)
+        }
+        
+        self.size = size
+        self.align = align
+    }
+    
+    // Type interface implementation
+    impl Type for CompositeType {
+        fn verify(context: Context) -> Result<(), Error> {
+            // Verify all fields
+            for field in self.fields {
+                field.type.verify(context)?
+            }
+            
+            // Verify all methods
+            for method in self.methods {
+                method.signature.verify(context)?
+            }
+            
+            // Verify all safety constraints
+            for constraint in self.constraints {
+                constraint.verify(context)?
+            }
+            
+            Ok(())
+        }
+        
+        fn is_compatible_with(other: Type) -> bool {
+            match other {
+                CompositeType(c) => {
+                    // Check structural compatibility
+                    if self.fields.len() != c.fields.len() {
+                        return false
+                    }
+                    
+                    // Check field compatibility
+                    for (self_field, other_field) in self.fields.iter().zip(c.fields.iter()) {
+                        if !self_field.type.is_compatible_with(other_field.type) {
+                            return false
+                        }
+                    }
+                    
+                    true
+                },
+                _ => false
+            }
+        }
+        
+        fn can_cast_to(target: Type) -> bool {
+            self.is_compatible_with(target)
+        }
+        
+        fn requires_drop() -> bool {
+            self.fields.iter().any(|f| f.type.requires_drop())
+        }
+        
+        fn has_destructor() -> bool {
+            self.methods.iter().any(|m| m.name == "drop")
+        }
+    }
+}
+
+// Function types
+struct FunctionType : Type {
+    params: Vec<Type>
+    return_type: Type
+    effects: Vec<Effect>
+    
+    // Constructor
+    new(params: Vec<Type>, return_type: Type) -> FunctionType {
+        FunctionType {
+            name: format!("fn({}) -> {}", params, return_type),
+            size: 8, // Function pointer size
+            align: 8,
+            params,
+            return_type,
+            effects: Vec::new()
+        }
+    }
+    
+    // Effect tracking
+    fn add_effect(&mut self, effect: Effect) {
+        self.effects.push(effect)
+    }
+    
+    // Type interface implementation
+    impl Type for FunctionType {
+        fn verify(context: Context) -> Result<(), Error> {
+            // Verify parameter types
+            for param in self.params {
+                param.verify(context)?
+            }
+            
+            // Verify return type
+            self.return_type.verify(context)?
+            
+            // Verify effects
+            for effect in self.effects {
+                effect.verify(context)?
+            }
+            
+            Ok(())
+        }
+        
+        fn is_compatible_with(other: Type) -> bool {
+            match other {
+                FunctionType(f) => {
+                    // Check parameter compatibility
+                    if self.params.len() != f.params.len() {
+                        return false
+                    }
+                    
+                    for (self_param, other_param) in self.params.iter().zip(f.params.iter()) {
+                        if !self_param.is_compatible_with(other_param) {
+                            return false
+                        }
+                    }
+                    
+                    // Check return type compatibility
+                    self.return_type.is_compatible_with(f.return_type)
+                },
+                _ => false
+            }
+        }
+        
+        fn can_cast_to(target: Type) -> bool {
+            self.is_compatible_with(target)
+        }
+        
+        fn requires_drop() -> bool { false }
+        fn has_destructor() -> bool { false }
+    }
+}
+
+// Generic types
+struct GenericType : Type {
+    constraints: Vec<Constraint>
+    bound_type: Option<Type>
+    
+    // Constructor
+    new(name: string) -> GenericType {
+        GenericType {
+            name,
+            size: 0,
+            align: 0,
+            constraints: Vec::new(),
+            bound_type: None
+        }
+    }
+    
+    // Constraint management
+    fn add_constraint(&mut self, constraint: Constraint) {
+        self.constraints.push(constraint)
+    }
+    
+    fn bind(&mut self, concrete_type: Type) -> Result<(), Error> {
+        // Verify all constraints
+        for constraint in self.constraints {
+            if !constraint.verify(concrete_type) {
+                return Err(Error::ConstraintViolation(constraint, concrete_type))
+            }
+        }
+        
+        self.bound_type = Some(concrete_type)
+        self.size = concrete_type.size
+        self.align = concrete_type.align
+        Ok(())
+    }
+    
+    // Type interface implementation
+    impl Type for GenericType {
+        fn verify(context: Context) -> Result<(), Error> {
+            match self.bound_type {
+                Some(t) => t.verify(context),
+                None => Ok(()) // Unbound generics are valid during type checking
+            }
+        }
+        
+        fn is_compatible_with(other: Type) -> bool {
+            match self.bound_type {
+                Some(t) => t.is_compatible_with(other),
+                None => false
+            }
+        }
+        
+        fn can_cast_to(target: Type) -> bool {
+            match self.bound_type {
+                Some(t) => t.can_cast_to(target),
+                None => false
+            }
+        }
+        
+        fn requires_drop() -> bool {
+            match self.bound_type {
+                Some(t) => t.requires_drop(),
+                None => false
+            }
+        }
+        
+        fn has_destructor() -> bool {
+            match self.bound_type {
+                Some(t) => t.has_destructor(),
+                None => false
+            }
+        }
+    }
+}
+
+// Type registry for managing types within a module
+struct TypeRegistry {
+    types: HashMap<string, Type>
+    
+    // Constructor
+    new() -> TypeRegistry {
+        TypeRegistry {
+            types: HashMap::new()
+        }
+    }
+    
+    // Type registration
+    fn register_type(&mut self, type: Type) -> Result<(), Error> {
+        if self.types.contains_key(type.name) {
+            return Err(Error::DuplicateType(type.name))
+        }
+        
+        self.types.insert(type.name, type)
+        Ok(())
+    }
+    
+    // Type lookup
+    fn get_type(&self, name: string) -> Option<Type> {
+        self.types.get(name)
+    }
+    
+    // Type verification
+    fn verify_all(&self, context: Context) -> Result<(), Error> {
+        for type in self.types.values() {
+            type.verify(context)?
+        }
+        Ok(())
+    }
+}
