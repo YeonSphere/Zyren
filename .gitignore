@@ -1,9 +1,13 @@
 # Ignore node_modules
 node_modules/
 
-# Ignore build output
+# Build artifacts
 build/
-dist/
+bin/
+*.exe
+*.dll
+*.so
+*.dylib
 
 # Ignore logs
 logs/
@@ -18,22 +22,34 @@ Thumbs.db
 .env.local
 .env.*.local
 
-# Ignore IDE and editor files
+# IDE and editor files
 .vscode/
 .idea/
 *.swp
 *.swo
+*~
 
-# Ignore package manager files
-yarn-error.log
-npm-debug.log*
+# Generated files
+*.o
+*.obj
+*.lib
+*.a
+*.out
 
-# Ignore test coverage reports
-coverage/
+# Platform-specific installers
+bootstrap/*/seo-install*
 
-# Ignore temporary files
+# Dependencies
+/vendor/
+
+# Temporary files
 *.tmp
 *.temp
+*.log
 
-# Ignore Seoggi specific files
-*.seoggi
+# Documentation generated
+docs/_build/
+
+# OS-specific files
+.DS_Store
+Thumbs.db

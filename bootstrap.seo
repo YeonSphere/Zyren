@@ -1,0 +1,199 @@
+// YeonSphere Universal Open Source License (YUOSL)
+// Copyright (c) 2024 Jeremy Matlock (@daedaevibin)
+// All rights reserved.
+
+// Minimal bootstrap compiler to get the system started
+
+// Minimal types needed for bootstrapping
+struct MinimalCompiler {
+    // Create minimal working compiler
+    fn new() -> MinimalCompiler {
+        MinimalCompiler {}
+    }
+    
+    // Compile installer
+    fn compile_installer(&mut self) -> Result<Vec<u8>, Error> {
+        // Read installer source
+        let source = platform::read_file("install.seo")?;
+        
+        // Create minimal tokenizer
+        let tokens = self.tokenize(source)?;
+        
+        // Generate minimal IR
+        let ir = self.generate_ir(tokens)?;
+        
+        // Generate native code
+        self.generate_code(ir)
+    }
+    
+    // Minimal tokenizer
+    fn tokenize(&self, source: String) -> Result<Vec<Token>, Error> {
+        let mut tokens = Vec::new();
+        let mut pos = 0;
+        
+        while pos < source.len() {
+            let c = source[pos];
+            match c {
+                // Skip whitespace
+                ' ' | '\t' | '\n' | '\r' => pos += 1,
+                
+                // Handle identifiers and keywords
+                'a'..='z' | 'A'..='Z' | '_' => {
+                    let start = pos;
+                    while pos < source.len() && 
+                          (source[pos].is_alphanumeric() || source[pos] == '_') {
+                        pos += 1;
+                    }
+                    let text = &source[start..pos];
+                    tokens.push(Token::new(text));
+                }
+                
+                // Handle numbers
+                '0'..='9' => {
+                    let start = pos;
+                    while pos < source.len() && source[pos].is_digit(10) {
+                        pos += 1;
+                    }
+                    let text = &source[start..pos];
+                    tokens.push(Token::Number(text.parse()?));
+                }
+                
+                // Handle operators
+                '+' | '-' | '*' | '/' | '=' | '<' | '>' => {
+                    tokens.push(Token::Operator(c));
+                    pos += 1;
+                }
+                
+                // Handle delimiters
+                '(' | ')' | '{' | '}' | '[' | ']' | ',' | ';' => {
+                    tokens.push(Token::Delimiter(c));
+                    pos += 1;
+                }
+                
+                // Handle strings
+                '"' => {
+                    pos += 1;
+                    let start = pos;
+                    while pos < source.len() && source[pos] != '"' {
+                        pos += 1;
+                    }
+                    let text = &source[start..pos];
+                    tokens.push(Token::String(text.to_string()));
+                    pos += 1;
+                }
+                
+                // Skip comments
+                '/' if pos + 1 < source.len() && source[pos + 1] == '/' => {
+                    while pos < source.len() && source[pos] != '\n' {
+                        pos += 1;
+                    }
+                }
+                
+                // Error on invalid characters
+                _ => return Err(Error::new("Invalid character"))
+            }
+        }
+        
+        Ok(tokens)
+    }
+    
+    // Generate minimal IR
+    fn generate_ir(&self, tokens: Vec<Token>) -> Result<Vec<IRInst>, Error> {
+        let mut ir = Vec::new();
+        let mut pos = 0;
+        
+        while pos < tokens.len() {
+            match &tokens[pos] {
+                Token::Keyword("fn") => {
+                    // Handle function
+                    pos += 1;
+                    let name = match &tokens[pos] {
+                        Token::Identifier(name) => name,
+                        _ => return Err(Error::new("Expected function name"))
+                    };
+                    
+                    // Skip to body
+                    while tokens[pos] != Token::Delimiter('{') {
+                        pos += 1;
+                    }
+                    pos += 1;
+                    
+                    // Generate function body
+                    while tokens[pos] != Token::Delimiter('}') {
+                        let inst = self.generate_instruction(&tokens, &mut pos)?;
+                        ir.push(inst);
+                    }
+                }
+                _ => pos += 1
+            }
+        }
+        
+        Ok(ir)
+    }
+    
+    // Generate minimal native code
+    fn generate_code(&self, ir: Vec<IRInst>) -> Result<Vec<u8>, Error> {
+        let mut code = Vec::new();
+        
+        // Generate minimal native code that can run the installer
+        match platform::arch() {
+            "x86_64" => self.generate_x86_64(&mut code, ir)?,
+            "aarch64" => self.generate_arm64(&mut code, ir)?,
+            "riscv64" => self.generate_riscv64(&mut code, ir)?,
+            _ => return Err(Error::new("Unsupported architecture"))
+        }
+        
+        Ok(code)
+    }
+    
+    // Generate x86_64 code
+    fn generate_x86_64(&self, code: &mut Vec<u8>, ir: Vec<IRInst>) -> Result<(), Error> {
+        // Minimal x86_64 code generation
+        for inst in ir {
+            match inst {
+                IRInst::Call(name) => {
+                    // Call instruction
+                    code.extend_from_slice(&[
+                        0x48, 0xB8,  // movabs rax, addr
+                        0, 0, 0, 0, 0, 0, 0, 0,  // address to fill
+                        0xFF, 0xD0   // call rax
+                    ]);
+                }
+                IRInst::Return => {
+                    // Return instruction
+                    code.push(0xC3);  // ret
+                }
+                _ => {}
+            }
+        }
+        Ok(())
+    }
+}
+
+// Main bootstrap entry point
+fn main() -> Result<(), Error> {
+    // Create minimal compiler
+    let mut compiler = MinimalCompiler::new();
+    
+    // Compile installer
+    println("Bootstrapping seoggi installer...");
+    let installer = compiler.compile_installer()?;
+    
+    // Write installer binary
+    let installer_path = match platform::os() {
+        "windows" => "seoggi_install.exe",
+        _ => "seoggi_install"
+    };
+    platform::write_file(installer_path, &installer)?;
+    
+    // Make installer executable on Unix systems
+    if platform::os() != "windows" {
+        platform::set_executable(installer_path)?;
+    }
+    
+    // Run installer
+    println("Running installer...");
+    platform::execute(installer_path)?;
+    
+    Ok(())
+}

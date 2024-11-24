@@ -1,0 +1,285 @@
+// YeonSphere Universal Open Source License (YUOSL)
+// Copyright (c) 2024 Jeremy Matlock (@daedaevibin)
+// All rights reserved.
+
+// Direct token stream processor for Seoggi
+
+// Token types represent all possible language constructs
+enum TokenType {
+    // Keywords
+    Kernel, Module, Fn, Unsafe, Let, Mut, 
+    If, Else, For, While, Return,
+    Struct, Enum, Trait, Impl,
+    Async, Await, Parallel,
+    
+    // Literals
+    Integer, Float, String, Char, Bool,
+    
+    // Operators
+    Plus, Minus, Star, Slash,
+    Eq, NotEq, Lt, Gt, LtEq, GtEq,
+    And, Or, Not,
+    
+    // Delimiters
+    LParen, RParen, LBrace, RBrace,
+    LBracket, RBracket, Comma, Dot,
+    Colon, Semicolon, Arrow,
+    
+    // Special
+    Identifier, EOF, Error
+}
+
+// Token represents a single lexical unit
+struct Token {
+    type: TokenType
+    value: String
+    line: u32
+    column: u32
+    
+    // Fast token comparison without string allocation
+    fn matches(self, other: TokenType) -> bool {
+        self.type == other
+    }
+    
+    // Get numeric value for integer tokens
+    fn as_int(self) -> Result<i64, Error> {
+        if !self.matches(TokenType::Integer) {
+            return Err(Error::new("Token is not an integer"))
+        }
+        self.value.parse()
+    }
+}
+
+// TokenStream provides efficient token processing
+struct TokenStream {
+    tokens: Vec<Token>
+    position: usize
+    
+    // Create new token stream
+    fn new() -> TokenStream {
+        TokenStream {
+            tokens: Vec::new(),
+            position: 0
+        }
+    }
+    
+    // Get current token
+    fn current(&self) -> &Token {
+        &self.tokens[self.position]
+    }
+    
+    // Look ahead without consuming
+    fn peek(&self, offset: usize) -> Option<&Token> {
+        self.tokens.get(self.position + offset)
+    }
+    
+    // Consume and return next token
+    fn advance(&mut self) -> Option<&Token> {
+        if self.position < self.tokens.len() {
+            self.position += 1
+            Some(self.current())
+        } else {
+            None
+        }
+    }
+    
+    // Check if current token matches expected type
+    fn expect(&mut self, type: TokenType) -> Result<&Token, Error> {
+        let token = self.current();
+        if token.matches(type) {
+            self.advance();
+            Ok(token)
+        } else {
+            Err(Error::new(format!(
+                "Expected {:?}, found {:?}", 
+                type, 
+                token.type
+            )))
+        }
+    }
+}
+
+// Tokenizer converts source code into token stream
+struct Tokenizer {
+    source: String
+    position: usize
+    line: u32
+    column: u32
+    
+    // Create new tokenizer
+    fn new(source: String) -> Tokenizer {
+        Tokenizer {
+            source,
+            position: 0,
+            line: 1,
+            column: 1
+        }
+    }
+    
+    // Tokenize entire source into token stream
+    fn tokenize(&mut self) -> Result<TokenStream, Error> {
+        let mut stream = TokenStream::new();
+        
+        while !self.is_at_end() {
+            match self.next_token() {
+                Ok(token) => stream.tokens.push(token),
+                Err(e) => return Err(e)
+            }
+        }
+        
+        // Add EOF token
+        stream.tokens.push(Token {
+            type: TokenType::EOF,
+            value: String::new(),
+            line: self.line,
+            column: self.column
+        });
+        
+        Ok(stream)
+    }
+    
+    // Process next token from source
+    fn next_token(&mut self) -> Result<Token, Error> {
+        self.skip_whitespace();
+        
+        if self.is_at_end() {
+            return Ok(Token {
+                type: TokenType::EOF,
+                value: String::new(),
+                line: self.line,
+                column: self.column
+            })
+        }
+        
+        let c = self.advance();
+        
+        // Pattern match on character
+        match c {
+            '(' => self.make_token(TokenType::LParen),
+            ')' => self.make_token(TokenType::RParen),
+            '{' => self.make_token(TokenType::LBrace),
+            '}' => self.make_token(TokenType::RBrace),
+            '[' => self.make_token(TokenType::LBracket),
+            ']' => self.make_token(TokenType::RBracket),
+            ',' => self.make_token(TokenType::Comma),
+            '.' => self.make_token(TokenType::Dot),
+            ':' => self.make_token(TokenType::Colon),
+            ';' => self.make_token(TokenType::Semicolon),
+            
+            // Operators
+            '+' => self.make_token(TokenType::Plus),
+            '-' => self.handle_minus(),
+            '*' => self.make_token(TokenType::Star),
+            '/' => self.handle_slash(),
+            
+            // String literals
+            '"' => self.string(),
+            
+            // Numbers
+            c if c.is_digit(10) => self.number(),
+            
+            // Identifiers and keywords
+            c if c.is_alphabetic() || c == '_' => self.identifier(),
+            
+            // Invalid character
+            _ => Err(Error::new(format!(
+                "Unexpected character: {} at line {} column {}", 
+                c, self.line, self.column
+            )))
+        }
+    }
+    
+    // Helper methods for token creation
+    fn make_token(&self, type: TokenType) -> Result<Token, Error> {
+        Ok(Token {
+            type,
+            value: String::new(),
+            line: self.line,
+            column: self.column
+        })
+    }
+    
+    // Process identifiers and keywords
+    fn identifier(&mut self) -> Result<Token, Error> {
+        let start = self.position - 1;
+        while !self.is_at_end() && 
+              (self.peek().is_alphanumeric() || self.peek() == '_') {
+            self.advance();
+        }
+        
+        let text = &self.source[start..self.position];
+        let type = match text {
+            "kernel" => TokenType::Kernel,
+            "module" => TokenType::Module,
+            "fn" => TokenType::Fn,
+            "unsafe" => TokenType::Unsafe,
+            "let" => TokenType::Let,
+            "mut" => TokenType::Mut,
+            "if" => TokenType::If,
+            "else" => TokenType::Else,
+            "for" => TokenType::For,
+            "while" => TokenType::While,
+            "return" => TokenType::Return,
+            "struct" => TokenType::Struct,
+            "enum" => TokenType::Enum,
+            "trait" => TokenType::Trait,
+            "impl" => TokenType::Impl,
+            "async" => TokenType::Async,
+            "await" => TokenType::Await,
+            "parallel" => TokenType::Parallel,
+            _ => TokenType::Identifier
+        };
+        
+        Ok(Token {
+            type,
+            value: text.to_string(),
+            line: self.line,
+            column: self.column
+        })
+    }
+    
+    // Utility methods
+    fn is_at_end(&self) -> bool {
+        self.position >= self.source.len()
+    }
+    
+    fn peek(&self) -> char {
+        if self.is_at_end() {
+            '\0'
+        } else {
+            self.source.chars().nth(self.position).unwrap()
+        }
+    }
+    
+    fn advance(&mut self) -> char {
+        let c = self.peek();
+        self.position += 1;
+        self.column += 1;
+        c
+    }
+    
+    fn skip_whitespace(&mut self) {
+        while !self.is_at_end() {
+            match self.peek() {
+                ' ' | '\r' | '\t' => {
+                    self.advance();
+                }
+                '\n' => {
+                    self.line += 1;
+                    self.column = 1;
+                    self.advance();
+                }
+                '/' => {
+                    if self.peek_next() == '/' {
+                        while !self.is_at_end() && self.peek() != '\n' {
+                            self.advance();
+                        }
+                    } else {
+                        return;
+                    }
+                }
+                _ => return
+            }
+        }
+    }
+}
