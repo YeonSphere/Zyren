@@ -3,16 +3,14 @@
 Thank you for considering contributing to Seoggi! We welcome contributions from everyone and are excited to welcome you aboard.
 
 ## Table of Contents
-- [Code of Conduct](#code-of-conduct)
 - [Getting Started](#getting-started)
 - [Development Process](#development-process)
 - [Submitting Changes](#submitting-changes)
 - [Coding Standards](#coding-standards)
 - [Testing Guidelines](#testing-guidelines)
 - [Documentation](#documentation)
-
-## Code of Conduct
-We are committed to fostering a welcoming and inclusive community. Please read and follow our [Code of Conduct](CODE_OF_CONDUCT.md).
+- [Code of Conduct](#code-of-conduct)
+- [Getting Help](#getting-help)
 
 ## Getting Started
 
@@ -25,8 +23,8 @@ We are committed to fostering a welcoming and inclusive community. Please read a
 1. Fork the repository
 2. Clone your fork:
    ```bash
-   git clone https://github.com/YOUR_USERNAME/Seoggi.git
-   cd Seoggi
+   git clone https://github.com/YOUR_USERNAME/Seoggi.seo.git
+   cd Seoggi.seo
    ```
 3. Run setup script:
    ```bash
@@ -180,9 +178,12 @@ fn process_data(input: str) -> Result<int, Error> {
 - Update API documentation
 - Add examples for new functionality
 
+## Code of Conduct
+We are committed to fostering a welcoming and inclusive community. Please read and follow our [Code of Conduct](CODE_OF_CONDUCT.md).
+
 ## Getting Help
 - Join our [Discord](https://discord.gg/)
-- Check the [Documentation](https://yeonsphere.io/seoggi/docs/)
+- Check the [Documentation](https://yeonsphere.io/seoggi.seo/docs/)
 - Ask in GitHub Discussions
 - Contact the maintainers
 

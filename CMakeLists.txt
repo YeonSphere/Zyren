@@ -1,14 +1,10 @@
 cmake_minimum_required(VERSION 3.15)
 project(Seoggi VERSION 0.1.0 LANGUAGES C CXX)
 
-# Add cmake modules path
-list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
+# Seoggi Build Configuration
 
 # Set CMake policies
 cmake_policy(SET CMP0167 NEW)
-
-# Include Seoggi compilation rules
-include(SeoggiCompile)
 
 # Set build type if not specified
 if(NOT CMAKE_BUILD_TYPE)
@@ -19,6 +15,12 @@ endif()
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
+
+# Include Seoggi compilation rules
+include(SeoggiCompile)
+
+# Add cmake modules path
+list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 
 # Find required packages
 find_package(LLVM REQUIRED)

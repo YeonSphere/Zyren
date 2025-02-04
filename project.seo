@@ -1,5 +1,6 @@
 // Seoggi Programming Language
-project Seoggi {
+# Project Configuration
+project Seoggi.seo {
     version: "0.1.0"
     authors: ["YeonSphere Team"]
     description: "A modern systems programming language focused on zero-cost abstractions and safety"

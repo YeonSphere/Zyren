@@ -1,0 +1,75 @@
+#!/usr/bin/env seoggi
+
+// Seoggi Unit Tests
+
+// Test for Memory Management
+fn test_memory_allocation() {
+    let manager = MemoryManager.new();
+    let block = manager.allocate(1024);
+    assert(block.size == 1024);
+    manager.deallocate(block);
+}
+
+// Test for Process Management
+fn test_process_creation() {
+    let manager = ProcessManager.new();
+    let process = manager.create(1);
+    assert(process.state == "running");
+    manager.terminate(process);
+}
+
+// Test for IPC
+fn test_message_passing() {
+    let pid = 1; // Example PID
+    let message = "Hello";
+    send_message(pid, message);
+    let received = receive_message();
+    assert(received == message);
+}
+
+// Additional Unit Tests
+
+// Test for Memory Management Edge Case
+fn test_memory_allocation_edge() {
+    let manager = MemoryManager.new();
+    let block = manager.allocate(0); // Edge case for zero allocation
+    assert(block.size == 0);
+    manager.deallocate(block);
+}
+
+// Test for Process Management Edge Case
+fn test_process_termination() {
+    let manager = ProcessManager.new();
+    let process = manager.create(1);
+    manager.terminate(process);
+    assert(process.state == "terminated");
+}
+
+// Test for IPC Edge Case
+fn test_message_passing_edge() {
+    let pid = 1; // Example PID
+    let message = ""; // Empty message
+    send_message(pid, message);
+    let received = receive_message();
+    assert(received == message);
+}
+
+// Run all tests
+fn run_tests() {
+    test_memory_allocation();
+    test_process_creation();
+    test_message_passing();
+    print("All tests passed!");
+}
+
+// Run all tests including additional ones
+fn run_all_tests() {
+    run_tests();
+    test_memory_allocation_edge();
+    test_process_termination();
+    test_message_passing_edge();
+    print("All tests passed!");
+}
+
+// Execute all tests
+run_all_tests();
