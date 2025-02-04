@@ -1,0 +1,87 @@
+// Enhanced Standard Library for Seoggi
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <arpa/inet.h>
+#include <unistd.h>
+
+// Function for file I/O
+void write_to_file(const char* filename, const char* content) {
+    FILE* file = fopen(filename, "w");
+    if (file) {
+        fprintf(file, "%s", content);
+        fclose(file);
+        printf("Written to file: %s\n", filename);
+    } else {
+        printf("Error opening file: %s\n", filename);
+    }
+}
+
+char* read_from_file(const char* filename) {
+    static char buffer[256];
+    FILE* file = fopen(filename, "r");
+    if (file) {
+        fgets(buffer, sizeof(buffer), file);
+        fclose(file);
+        return buffer;
+    } else {
+        printf("Error opening file: %s\n", filename);
+        return NULL;
+    }
+}
+
+// Function for basic string manipulation
+void string_to_upper(char* str) {
+    for (int i = 0; str[i]; i++) {
+        str[i] = toupper(str[i]);
+    }
+}
+
+// Function for memory allocation
+void* allocate_memory(size_t size) {
+    void* ptr = malloc(size);
+    if (!ptr) {
+        printf("Memory allocation failed.\n");
+        exit(1);
+    }
+    return ptr;
+}
+
+// Function for freeing allocated memory
+void free_memory(void* ptr) {
+    free(ptr);
+}
+
+// Networking functions
+int create_socket() {
+    int sock = socket(AF_INET, SOCK_STREAM, 0);
+    if (sock < 0) {
+        printf("Socket creation failed.\n");
+        exit(1);
+    }
+    return sock;
+}
+
+void connect_to_server(int sock, const char* ip, int port) {
+    struct sockaddr_in server_addr;
+    server_addr.sin_family = AF_INET;
+    server_addr.sin_port = htons(port);
+    inet_pton(AF_INET, ip, &server_addr.sin_addr);
+
+    if (connect(sock, (struct sockaddr*)&server_addr, sizeof(server_addr)) < 0) {
+        printf("Connection to server failed.\n");
+        exit(1);
+    }
+    printf("Connected to server: %s:%d\n", ip, port);
+}
+
+void send_data(int sock, const char* data) {
+    send(sock, data, strlen(data), 0);
+    printf("Data sent: %s\n", data);
+}
+
+void close_socket(int sock) {
+    close(sock);
+    printf("Socket closed.\n");
+}

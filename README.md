@@ -4,7 +4,7 @@ Seoggi is a modern, multi-paradigm programming language designed for building re
 
 ## Overview
 
-Seoggi is a modern, multi-paradigm programming language designed for building reliable, efficient, and maintainable software systems.
+Seoggi is a powerful, efficient, and simple-to-learn programming language designed for performance and resource-conscious applications.
 
 ## Documentation
 
@@ -18,6 +18,22 @@ Visit [yeonsphere.github.io/seoggi](https://yeonsphere.github.io/seoggi.html) fo
 - Language Reference
 - Tutorials & Examples
 
+## Build and Installation Instructions
+
+### Building Seoggi
+To build Seoggi, run the following command:
+```bash
+bash build.sh
+```
+
+### Installing Seoggi
+After building, you can install Seoggi globally by running:
+```bash
+bash install.sh
+```
+
+Make sure you have the necessary permissions to move files to `/usr/local/bin`.
+
 ## Getting Started
 
 ### Installation
@@ -27,29 +43,16 @@ Visit [yeonsphere.github.io/seoggi](https://yeonsphere.github.io/seoggi.html) fo
 For a standard installation to `/usr/local`:
 
 ```bash
-sudo ./install.seo
+sudo ./install.sh
 ```
 
 For installation to a custom location:
 
 ```bash
 ./install.seo --prefix=/path/to/install
+
 ```
-
-#### Build from Source
-
-1. Clone the repository:
-```bash
-git clone https://github.com/yeonsphere/seoggi.git
-cd seoggi
 ```
-
-2. Build and install:
-```bash
-./build.seo
-sudo ./install.seo
-```
-
 #### Requirements
 
 - LLVM 15.0.0 or later
@@ -78,7 +81,7 @@ This will run all the unit tests and report any issues.
 
 ```bash
 # Install Seoggi
-curl -fsSL https://raw.githubusercontent.com/YeonSphere/Seoggi/main/bootstrap/install.seo | sh
+curl -fsSL https://raw.githubusercontent.com/YeonSphere/Seoggi/main/install.sh | sh
 
 # Create a new project
 seoc new myproject
@@ -88,9 +91,31 @@ cd myproject
 seoc run
 ```
 
+### Usage Examples
+
+#### Running a Seoggi Script
+After installation, you can run Seoggi scripts using the command:
+```bash
+seoggi path/to/script.seo
+```
+
+#### Example Script
+Here’s a simple example of a Seoggi script:
+```seo
+func add(x, y) {
+    return x + y;
+}
+
+print(add(5, 3));
+```
+
 ### Examples
 
 The `examples` directory contains several sample projects demonstrating the capabilities of Seoggi. You can explore these examples to understand how to use the language effectively.
+
+## Troubleshooting
+- **Installation Issues**: If you encounter issues during installation, ensure you have the necessary permissions for the installation directory.
+- **Build Failures**: Check for errors in the build output. Ensure all required source files are present.
 
 ## License
 
@@ -109,3 +134,6 @@ This project is licensed under the YeonSphere Universal Open Source License (YUO
 - Primary Contact: Jeremy Matlock (@daedaevibin)
 - Twitter: @seoggilang
 - Website: https://seoggi.dev
+
+## Contributing
+Contributions are welcome! Please submit issues and pull requests to improve Seoggi.

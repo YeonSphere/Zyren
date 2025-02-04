@@ -1,0 +1,19 @@
+// Execution functionality for Seoggi
+
+function execute(script) {
+    // Tokenize the input script
+    const tokens = tokenize(script);
+    // Parse the tokens into an AST
+    const ast = parse(tokens);
+    // Execute the AST (this will be a simple interpreter for now)
+    for (let node of ast) {
+        if (node.type === 'Identifier') {
+            printColored(`Identifier: ${node.name}`, COLORS.INFO);
+        } else if (node.type === 'NumberLiteral') {
+            printColored(`Number: ${node.value}`, COLORS.INFO);
+        } else if (node.type === 'Keyword') {
+            printColored(`Keyword: ${node.name}`, COLORS.INFO);
+        }
+    }
+}
+

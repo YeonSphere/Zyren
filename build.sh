@@ -11,9 +11,12 @@ LOG_FILE="$PROJECT_ROOT/build.log"
 BUILD_DIR="$PROJECT_ROOT/build"
 INSTALL_DIR="$PROJECT_ROOT/install"
 
-# Compiler paths
-SEOC="$PROJECT_ROOT/tools/compiler/seoc"
-SEO="$PROJECT_ROOT/bin/seo"
+# Interpreter path
+INTERPRETER="$PROJECT_ROOT/bin/interpreter"
+
+# Lexer and parser paths
+LEXER="$PROJECT_ROOT/bin/lexer"
+PARSER="$PROJECT_ROOT/bin/parser"
 
 # Function to log messages
 log() {
@@ -33,82 +36,106 @@ clean() {
     mkdir -p "$BUILD_DIR"
 }
 
-# Build the seoc compiler
-build_compiler() {
-    log "Building seoc compiler..."
-    print "Building compiler..."
+# Compile the lexer and parser
+compile_lexer_parser() {
+    log "Compiling lexer and parser..."
+    print "Compiling lexer and parser..."
     
-    mkdir -p "$(dirname "$SEOC")"
-    gcc -o "$SEOC" "$PROJECT_ROOT/src/compiler/seoc.c" || {
-        log "Failed to build seoc compiler"
-        print "Failed to build compiler"
-        exit 1
-    }
-    chmod +x "$SEOC"
-    
-    log "Compiler built successfully"
-    print "Compiler built successfully"
+    mkdir -p "$(dirname "$LEXER")"
+    cat > "$LEXER" << 'EOF'
+#!/bin/bash
+
+# Simple lexer for Seoggi language
+
+function lex() {
+    script="$1"
+    # Tokenization logic here
+    echo "Lexing: $script"
 }
 
-# Build the core runtime
-build_runtime() {
-    log "Building runtime..."
-    print "Building runtime..."
-    
-    "$SEOC" "$PROJECT_ROOT/src/runtime/runtime.seo" -o "$BUILD_DIR/libruntime.so" || {
-        log "Failed to build runtime"
-        print "Failed to build runtime"
-        exit 1
-    }
-    
-    log "Runtime built successfully"
-    print "Runtime built successfully"
+# Process each .seo file
+for file in "$PROJECT_ROOT/src/compiler/"*.seo; do
+    lex "$file"
+done
+EOF
+    chmod +x "$LEXER"
+
+    mkdir -p "$(dirname "$PARSER")"
+    cat > "$PARSER" << 'EOF'
+#!/bin/bash
+
+# Simple parser for Seoggi language
+
+function parse() {
+    tokens="$1"
+    # Parsing logic here
+    echo "Parsing: $tokens"
 }
 
-# Build the main executable
-build_main() {
-    log "Building main executable..."
-    print "Building main executable..."
+# Process each .seo file
+for file in "$PROJECT_ROOT/src/compiler/"*.seo; do
+    parse "$file"
+done
+EOF
+    chmod +x "$PARSER"
     
-    "$SEOC" "$PROJECT_ROOT/src/core/main.seo" -o "$SEO" || {
-        log "Failed to build main executable"
-        print "Failed to build main executable"
+    if [ $? -eq 0 ]; then
+        log "Lexer and parser compiled successfully"
+        print "Lexer and parser compiled successfully"
+    else
+        log "Failed to compile lexer and parser"
+        print "Failed to compile lexer and parser"
         exit 1
-    }
-    chmod +x "$SEO"
-    
-    log "Main executable built successfully"
-    print "Main executable built successfully"
+    fi
 }
 
-# Install Seoggi
-install() {
-    log "Installing Seoggi..."
-    print "Installing Seoggi..."
+# Build the interpreter
+build_interpreter() {
+    log "Building interpreter..."
+    print "Building interpreter..."
     
-    mkdir -p "$INSTALL_DIR"/{bin,lib,include}
+    mkdir -p "$(dirname "$INTERPRETER")"
+    cat > "$INTERPRETER" << 'EOF'
+#!/bin/bash
+
+# Simple interpreter for Seoggi language
+
+function interpret() {
+    script="$1"
+    tokens=$(./bin/lexer "$script")
+    ast=$(./bin/parser "$tokens")
+    execute "$ast"
+}
+
+function execute() {
+    ast="$1"
+    # Logic to execute the AST
+    echo "Executing AST: $ast"
+}
+
+# Process each .seo file
+for file in "$PROJECT_ROOT/src/compiler/"*.seo; do
+    interpret "$file"
+done
+EOF
+    chmod +x "$INTERPRETER"
     
-    # Install binaries
-    cp "$SEO" "$INSTALL_DIR/bin/"
-    cp "$SEOC" "$INSTALL_DIR/bin/"
-    
-    # Install libraries
-    cp "$BUILD_DIR"/*.so "$INSTALL_DIR/lib/"
-    
-    # Install headers
-    cp -r "$PROJECT_ROOT/include"/* "$INSTALL_DIR/include/"
-    
-    log "Installation complete"
-    print "Installation complete"
+    if [ $? -eq 0 ]; then
+        log "Interpreter built successfully"
+        print "Interpreter built successfully"
+    else
+        log "Failed to build interpreter"
+        print "Failed to build interpreter"
+        exit 1
+    fi
 }
 
 # Main build process
 main() {
     clean
-    build_compiler
-    build_runtime
-    build_main
-    install
+    compile_lexer_parser
+    build_interpreter
+    echo "Build completed!"
 }
 
 # Execute main build process

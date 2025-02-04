@@ -1,0 +1,25 @@
+// Parser for Seoggi
+
+// This parser will convert tokens into an abstract syntax tree (AST).
+
+function parse(tokens) {
+    const ast = [];
+    for (let token of tokens) {
+        if (token.type === 'IDENTIFIER') {
+            ast.push({ type: 'Identifier', name: token.value });
+        } else if (token.type === 'NUMBER') {
+            ast.push({ type: 'NumberLiteral', value: parseInt(token.value, 10) });
+        } else if (token.type === 'KEYWORD') {
+            ast.push({ type: 'Keyword', name: token.value });
+        }
+    }
+    return ast;
+}
+
+// Define the structure of the AST
+class ASTNode {
+    constructor(type, value) {
+        this.type = type;
+        this.value = value;
+    }
+}

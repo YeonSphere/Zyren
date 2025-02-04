@@ -1,0 +1,150 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+// Compiler version
+#define SEOC_VERSION "0.1.0"
+
+// Function declarations
+void print_version(void);
+void print_usage(void);
+int compile_file(const char* input_file, const char* output_file);
+
+// Function to handle kernel definitions
+int handle_kernel_definition(const char* line, FILE* out);
+// Function to handle driver definitions
+int handle_driver_definition(const char* line, FILE* out);
+// Function to handle IPC definitions
+int handle_ipc_definition(const char* line, FILE* out);
+// Function to handle web view definitions
+int handle_webview_definition(const char* line, FILE* out);
+
+int main(int argc, char* argv[]) {
+    if (argc < 2) {
+        print_usage();
+        return 1;
+    }
+
+    // Handle command line arguments
+    if (strcmp(argv[1], "--version") == 0 || strcmp(argv[1], "-v") == 0) {
+        print_version();
+        return 0;
+    }
+
+    if (argc < 3) {
+        fprintf(stderr, "Error: No output file specified\n");
+        print_usage();
+        return 1;
+    }
+
+    // Ensure input file has .seo extension
+    if (strstr(argv[1], ".seo") == NULL) {
+        fprintf(stderr, "Error: Input file must have a .seo extension\n");
+        return 1;
+    }
+
+    return compile_file(argv[1], argv[2]);
+}
+
+void print_version(void) {
+    printf("seoc version %s\n", SEOC_VERSION);
+}
+
+void print_usage(void) {
+    printf("Usage: seoc <input_file.seo> <output_file>\n");
+    printf("Options:\n");
+    printf("  --version, -v    Print version information\n");
+}
+
+int compile_file(const char* input_file, const char* output_file) {
+    FILE* in = fopen(input_file, "r");
+    if (!in) {
+        fprintf(stderr, "Error: Could not open input file '%s'\n", input_file);
+        return 1;
+    }
+
+    FILE* out = fopen(output_file, "w");
+    if (!out) {
+        fclose(in);
+        fprintf(stderr, "Error: Could not open output file '%s'\n", output_file);
+        return 1;
+    }
+
+    char line[256];
+    while (fgets(line, sizeof(line), in)) {
+        if (strncmp(line, "kernel", 6) == 0) {
+            handle_kernel_definition(line, out);
+        } else if (strncmp(line, "driver", 6) == 0) {
+            handle_driver_definition(line, out);
+        } else if (strncmp(line, "ipc", 3) == 0) {
+            handle_ipc_definition(line, out);
+        } else if (strncmp(line, "webview", 7) == 0) {
+            handle_webview_definition(line, out);
+        }
+    }
+
+    fclose(in);
+    fclose(out);
+    
+    printf("Compiled %s -> %s\n", input_file, output_file);
+    return 0;
+}
+
+int handle_kernel_definition(const char* line, FILE* out) {
+    char* kernel_name = strtok(line, " ");
+    kernel_name = strtok(NULL, " ");
+    char* kernel_version = strtok(NULL, " ");
+    
+    // Generate the necessary code or structures
+    fprintf(out, "#include <stdio.h>\n");
+    fprintf(out, "#include <stdlib.h>\n");
+    fprintf(out, "\n");
+    fprintf(out, "void kernel_%s() {\n", kernel_name);
+    fprintf(out, "    printf(\"Kernel %s version %s\n\");\n", kernel_name, kernel_version);
+    fprintf(out, "}\n");
+    return 0;
+}
+
+int handle_driver_definition(const char* line, FILE* out) {
+    char* driver_name = strtok(line, " ");
+    driver_name = strtok(NULL, " ");
+    char* driver_version = strtok(NULL, " ");
+    
+    // Generate the necessary code or structures
+    fprintf(out, "#include <stdio.h>\n");
+    fprintf(out, "#include <stdlib.h>\n");
+    fprintf(out, "\n");
+    fprintf(out, "void driver_%s() {\n", driver_name);
+    fprintf(out, "    printf(\"Driver %s version %s\n\");\n", driver_name, driver_version);
+    fprintf(out, "}\n");
+    return 0;
+}
+
+int handle_ipc_definition(const char* line, FILE* out) {
+    char* ipc_name = strtok(line, " ");
+    ipc_name = strtok(NULL, " ");
+    char* ipc_type = strtok(NULL, " ");
+    
+    // Generate IPC code or structures
+    fprintf(out, "#include <stdio.h>\n");
+    fprintf(out, "#include <stdlib.h>\n");
+    fprintf(out, "\n");
+    fprintf(out, "void ipc_%s() {\n", ipc_name);
+    fprintf(out, "    printf(\"IPC %s of type %s initialized.\n\");\n", ipc_name, ipc_type);
+    fprintf(out, "}\n");
+    return 0;
+}
+
+int handle_webview_definition(const char* line, FILE* out) {
+    char* webview_name = strtok(line, " ");
+    webview_name = strtok(NULL, " ");
+    
+    // Generate webview code or structures
+    fprintf(out, "#include <stdio.h>\n");
+    fprintf(out, "#include <stdlib.h>\n");
+    fprintf(out, "\n");
+    fprintf(out, "void webview_%s() {\n", webview_name);
+    fprintf(out, "    printf(\"Webview %s initialized.\n\");\n", webview_name);
+    fprintf(out, "}\n");
+    return 0;
+}

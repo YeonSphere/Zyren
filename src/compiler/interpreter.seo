@@ -1,0 +1,27 @@
+// Simple interpreter for Seoggi language
+
+function interpret(script) {
+    const tokens = tokenize(script);
+    const ast = parse(tokens);
+    execute(ast);
+}
+
+function execute(ast) {
+    for (let node of ast) {
+        if (node.type === 'Identifier') {
+            printColored(`Identifier: ${node.name}`, COLORS.INFO);
+        } else if (node.type === 'NumberLiteral') {
+            printColored(`Number: ${node.value}`, COLORS.INFO);
+        } else if (node.type === 'Keyword') {
+            printColored(`Keyword: ${node.name}`, COLORS.INFO);
+        }
+    }
+}
+
+function main() {
+    // Example script to interpret
+    const script = 'func testFunc() { return 42; }';
+    interpret(script);
+}
+
+main();
