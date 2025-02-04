@@ -1,0 +1,86 @@
+// Seoggi Main Executable
+// Handles command line interface and program execution
+
+use std::io;
+use std::args;
+use std::fs;
+use runtime::Runtime;
+
+const VERSION: &str = "0.1.0";
+
+fn print_version() {
+    io::println("Seoggi v{}", VERSION);
+    io::println("The Zero-Cost Quantum Programming Language");
+}
+
+fn print_usage() {
+    io::println("Usage: seo <command> [arguments]");
+    io::println("Commands:");
+    io::println("  build <file>     Build a Seoggi program");
+    io::println("  run <file>       Run a Seoggi program");
+    io::println("  version          Print version information");
+    io::println("  help             Print this help message");
+}
+
+fn handle_build(args: &[String]) -> Result<(), String> {
+    if args.is_empty() {
+        return Err("No input file specified".to_string());
+    }
+
+    let input_file = &args[0];
+    if !fs::exists(input_file) {
+        return Err(format!("File not found: {}", input_file));
+    }
+
+    let output_file = fs::path::with_extension(input_file, "exe");
+    io::println("Building {} -> {}", input_file, output_file);
+    
+    // TODO: Implement actual build process
+    Ok(())
+}
+
+fn handle_run(args: &[String]) -> Result<(), String> {
+    if args.is_empty() {
+        return Err("No input file specified".to_string());
+    }
+
+    let input_file = &args[0];
+    if !fs::exists(input_file) {
+        return Err(format!("File not found: {}", input_file));
+    }
+
+    let mut runtime = Runtime::new();
+    runtime.initialize()?;
+
+    // TODO: Implement program execution
+    io::println("Running {}", input_file);
+
+    runtime.shutdown()?;
+    Ok(())
+}
+
+fn main() -> Result<(), String> {
+    let args: Vec<String> = args::args().collect();
+    
+    if args.len() < 2 {
+        print_usage();
+        return Ok(());
+    }
+
+    match args[1].as_str() {
+        "version" => {
+            print_version();
+            Ok(())
+        }
+        "help" => {
+            print_usage();
+            Ok(())
+        }
+        "build" => handle_build(&args[2..]),
+        "run" => handle_run(&args[2..]),
+        _ => {
+            print_usage();
+            Err("Unknown command".to_string())
+        }
+    }
+}

@@ -1,0 +1,44 @@
+// Seoggi Runtime
+// Provides core runtime functionality for Seoggi programs
+
+use std::memory;
+use std::thread;
+use std::sync;
+
+pub struct Runtime {
+    memory_manager: memory::MemoryManager,
+    thread_pool: thread::ThreadPool,
+    mutex: sync::Mutex
+}
+
+impl Runtime {
+    pub fn new() -> Runtime {
+        Runtime {
+            memory_manager: memory::MemoryManager::new(),
+            thread_pool: thread::ThreadPool::new(4),
+            mutex: sync::Mutex::new()
+        }
+    }
+
+    pub fn initialize(&mut self) -> Result<(), String> {
+        self.memory_manager.initialize()?;
+        self.thread_pool.start()?;
+        Ok(())
+    }
+
+    pub fn shutdown(&mut self) -> Result<(), String> {
+        self.thread_pool.shutdown()?;
+        self.memory_manager.cleanup()?;
+        Ok(())
+    }
+
+    pub fn allocate(&mut self, size: usize) -> Result<*mut u8, String> {
+        let _guard = self.mutex.lock()?;
+        self.memory_manager.allocate(size)
+    }
+
+    pub fn deallocate(&mut self, ptr: *mut u8) -> Result<(), String> {
+        let _guard = self.mutex.lock()?;
+        self.memory_manager.deallocate(ptr)
+    }
+}

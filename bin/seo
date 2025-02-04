@@ -1,3 +1,0 @@
-#!/bin/bash
-SEOGGI_ROOT="/home/dae/YeonSphere/Seoggi"
-exec "$SEOGGI_ROOT/tools/seo" "$@"

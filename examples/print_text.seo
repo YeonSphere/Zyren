@@ -1,5 +1,0 @@
-# Simple text input/output example
-
-write("Enter your name: ")
-name = read()
-write("Hello, " + name)

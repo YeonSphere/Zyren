@@ -9,10 +9,6 @@ bin/
 *.so
 *.dylib
 
-# Ignore logs
-logs/
-*.log
-
 # Ignore system files
 .DS_Store
 Thumbs.db
