@@ -1,0 +1,58 @@
+module examples.browser
+
+import std.ui.core.{Element, Size, Layout}
+import std.ui.window.{Window, create_window}
+import std.net.{Request, Response}
+
+fn main() {
+    let browser = create_browser_window()
+    browser.show()
+}
+
+fn create_browser_window() -> Window {
+    let root = Element {
+        id: "browser-root",
+        layout: Layout.STACK,
+        children: [
+            create_toolbar(),
+            create_content_area(),
+            create_status_bar()
+        ]
+    }
+    
+    create_window("Seoggi Browser", root)
+}
+
+fn create_toolbar() -> Element {
+    Element {
+        id: "toolbar",
+        height: Size.FIXED(40),
+        width: Size.FILL,
+        layout: Layout.ROW,
+        children: [
+            create_button("Back", on_back_clicked),
+            create_button("Forward", on_forward_clicked),
+            create_address_bar(),
+            create_button("Refresh", on_refresh_clicked)
+        ]
+    }
+}
+
+fn create_content_area() -> Element {
+    Element {
+        id: "content",
+        width: Size.FILL,
+        height: Size.FILL,
+        handlers: [
+            on_content_loaded,
+            on_scroll,
+            on_zoom
+        ]
+    }
+}
+
+fn load_content(url: string) -> Result<Content> {
+    let response = fetch(url)?
+    let content = parse_content(response)?
+    render_content(content)
+}

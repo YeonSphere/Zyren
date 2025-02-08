@@ -1,0 +1,23 @@
+type Queue<T> {
+    items: []T
+    head: int
+    tail: int
+    size: int
+}
+
+fn create_queue<T>(capacity: int) -> Queue<T> {
+    Queue {
+        items: allocate(capacity * sizeof<T>()),
+        head: 0,
+        tail: 0,
+        size: 0
+    }
+}
+
+fn enqueue<T>(queue: &mut Queue<T>, item: T) -> Result<void> {
+    // Thread-safe enqueueing with growth handling
+}
+
+fn dequeue<T>(queue: &mut Queue<T>) -> Result<T> {
+    // Thread-safe dequeueing with underflow protection
+}

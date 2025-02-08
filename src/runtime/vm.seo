@@ -1,0 +1,17 @@
+module runtime.vm
+
+type VM {
+    stack: []Value
+    heap: []byte
+    pc: int
+    frames: []StackFrame
+}
+
+type StackFrame {
+    locals: []Value
+    returnAddress: int
+}
+
+fn execute(bytecode: []byte) -> Result<Value> {
+    // VM implementation
+}

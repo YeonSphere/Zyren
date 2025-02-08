@@ -1,0 +1,22 @@
+type Tree<T> {
+    root: Node<T>?
+    size: int
+}
+
+type Node<T> {
+    value: T
+    parent: Node<T>?
+    children: []Node<T>
+    metadata: map<string, Value>
+}
+
+fn create_tree<T>() -> Tree<T> {
+    Tree {
+        root: None,
+        size: 0
+    }
+}
+
+fn insert<T>(tree: &mut Tree<T>, value: T, parent: Node<T>?) -> Node<T> {
+    // Tree node insertion with proper parent-child relationship
+}

@@ -1,0 +1,26 @@
+type PriorityQueue<T> {
+    heap: Vector<T>
+    comparator: fn(T, T) -> int
+}
+
+fn create_priority_queue<T>(comparator: fn(T, T) -> int) -> PriorityQueue<T> {
+    PriorityQueue {
+        heap: create_vector(16),
+        comparator: comparator
+    }
+}
+
+fn enqueue<T>(queue: &mut PriorityQueue<T>, item: T) {
+    queue.heap.push(item)
+    sift_up(queue, queue.heap.length - 1)
+}
+
+fn dequeue<T>(queue: &mut PriorityQueue<T>) -> Option<T> {
+    if queue.heap.is_empty() {
+        return None
+    }
+    
+    let result = queue.heap.remove(0)
+    sift_down(queue, 0)
+    Some(result)
+}

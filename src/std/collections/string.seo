@@ -1,0 +1,26 @@
+type String {
+    data: []u8
+    length: int
+    capacity: int
+    encoding: Encoding
+}
+
+type Encoding {
+    UTF8
+    UTF16
+    UTF32
+    ASCII
+}
+
+fn create_string(capacity: int) -> String {
+    String {
+        data: allocate(capacity),
+        length: 0,
+        capacity: capacity,
+        encoding: Encoding.UTF8
+    }
+}
+
+fn append(str: &mut String, other: &String) -> Result<void> {
+    // Efficient string concatenation with minimal allocations
+}

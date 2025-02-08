@@ -1,0 +1,24 @@
+module compiler.ast.nodes
+
+type NodeKind {
+    MODULE
+    IMPORT
+    FUNCTION
+    TYPE_DECL
+    VARIABLE
+    EXPRESSION
+    STATEMENT
+    BLOCK
+}
+
+type Node {
+    kind: NodeKind
+    location: SourceLocation
+    children: []Node
+}
+
+type SourceLocation {
+    file: string
+    line: int
+    column: int
+}

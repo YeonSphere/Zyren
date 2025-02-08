@@ -1,0 +1,25 @@
+type Graph<T> {
+    nodes: Vector<Node<T>>
+    edges: Vector<Edge<T>>
+    directed: bool
+}
+
+type Node<T> {
+    id: u64
+    value: T
+    edges: Vector<Edge<T>>
+}
+
+type Edge<T> {
+    from: Node<T>
+    to: Node<T>
+    weight: float
+}
+
+fn create_graph<T>(directed: bool) -> Graph<T> {
+    Graph {
+        nodes: create_vector(16),
+        edges: create_vector(16),
+        directed: directed
+    }
+}

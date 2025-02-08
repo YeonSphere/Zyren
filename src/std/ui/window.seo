@@ -1,0 +1,23 @@
+module std.ui.window
+
+type Window {
+    title: string
+    size: (int, int)
+    min_size: (int, int)
+    root: Element
+    state: WindowState
+}
+
+fn create_window(title: string, root: Element) -> Window {
+    Window {
+        title: title,
+        size: (800, 600),
+        min_size: (200, 100),
+        root: root,
+        state: WindowState.NORMAL
+    }
+}
+
+fn show(window: &Window) {
+    // Platform-specific window creation and management
+}

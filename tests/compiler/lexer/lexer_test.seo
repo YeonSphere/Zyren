@@ -1,0 +1,51 @@
+module tests.compiler.lexer
+
+import compiler.lexer.{tokenize}
+import compiler.lexer.token.{Token, TokenType}
+import core.testing.{Test, assert_eq}
+
+@test
+fn test_keywords() {
+    source = "fn type import return if else for while"
+    result = tokenize(source, "test.seo")
+    assert_eq(result.is_ok(), true)
+    
+    tokens = result.unwrap()
+    expected = [
+        TokenType.FN,
+        TokenType.TYPE,
+        TokenType.IMPORT,
+        TokenType.RETURN,
+        TokenType.IF,
+        TokenType.ELSE,
+        TokenType.FOR,
+        TokenType.WHILE,
+        TokenType.EOF
+    ]
+    
+    for i in 0..tokens.length-1 {
+        assert_eq(tokens[i].type, expected[i])
+    }
+}
+
+@test
+fn test_operators() {
+    source = "+ - * / = ->"
+    result = tokenize(source, "test.seo")
+    assert_eq(result.is_ok(), true)
+    
+    tokens = result.unwrap()
+    expected = [
+        TokenType.PLUS,
+        TokenType.MINUS,
+        TokenType.STAR,
+        TokenType.SLASH,
+        TokenType.EQUALS,
+        TokenType.ARROW,
+        TokenType.EOF
+    ]
+    
+    for i in 0..tokens.length-1 {
+        assert_eq(tokens[i].type, expected[i])
+    }
+}

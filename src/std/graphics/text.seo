@@ -1,0 +1,29 @@
+module std.graphics.text
+
+type Font {
+    family: string
+    size: float
+    weight: int
+    style: FontStyle
+}
+
+type TextStyle {
+    font: Font
+    color: Color
+    align: TextAlign
+    baseline: TextBaseline
+}
+
+type GlyphRun {
+    glyphs: []Glyph
+    advances: []float
+    positions: []Point
+}
+
+fn shape_text(text: string, style: TextStyle) -> GlyphRun {
+    // Text shaping with proper Unicode handling
+}
+
+fn measure_text(text: string, style: TextStyle) -> Size {
+    // Accurate text measurement
+}

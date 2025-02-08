@@ -1,0 +1,5 @@
+module tools.formatter
+
+fn formatFile(path: string) -> Result<void> {
+    // Formatter implementation
+}

@@ -1,36 +1,70 @@
-# Core language maintainers
-* @daedaevibin @YeonSphere
+# Nexus Browser Codeowners
 
-# Core language components
-/core/compiler/ @compiler-team
-/core/types/ @type-system-team
-/core/runtime/ @runtime-team
+# Global owner
+* @daedaevibin
 
-# Domain-specific modules
-/web/ @web-team
-/ai/ @ai-team
-/kernel/ @kernel-team
+# Specific file owners
+/LICENSE
+/README.md
+/CONTRIBUTING.md
+/CHANGELOG.md
 
-# Standard library
-/lib/ @stdlib-team
+# Frontend directory
+/frontend/
 
-# Documentation
-/docs/ @doc-team
-
-# Examples
-/examples/ @example-team
-/examples/web/ @web-team
-/examples/ai/ @ai-team
-/examples/kernel/ @kernel-team
-
-# Testing
-/tests/ @qa-team
-
-# Tools and infrastructure
-/tools/ @tools-team
-/bin/ @build-team
-setup.sh @devops-team
+# Backend directory (if applicable)
+/backend/
 
 # Configuration files
-*.config.js @devops-team
-*.yml @devops-team
+*.toml
+*.yaml
+*.json
+.env
+.gitignore
+
+# Tests directory
+/tests/
+
+# Documentation
+/docs/
+
+# Build and configuration files
+*.toml
+*.yaml
+*.json
+
+# Third-party dependencies
+/vendor/
+
+# CI/CD
+/.github/
+
+# Core Language
+/src/compiler/
+/src/runtime/
+/src/stdlib/
+
+# Language Features
+/src/memory/
+/src/concurrency/
+/src/security/
+
+# Build System
+/build/
+
+# Package System
+/package/* @dae
+
+# Development Tools
+/tools/* @dae
+/ide/* @dae
+
+# Testing Infrastructure
+/tests/unit/* @dae
+/tests/integration/* @dae
+/tests/performance/* @dae
+
+# Documentation
+/docs/specs/* @dae
+/docs/api/* @dae
+/*.md @dae

@@ -1,0 +1,28 @@
+type Mutex<T> {
+    data: T
+    state: AtomicState
+    waiters: WaitQueue
+}
+
+type WaitQueue {
+    head: Atomic<WaitNode?>
+    tail: Atomic<WaitNode?>
+}
+
+fn mutex<T>(value: T) -> Mutex<T> {
+    Mutex {
+        data: value,
+        state: AtomicState {
+            locked: false,
+            version: 0
+        },
+        waiters: WaitQueue {
+            head: atomic(None),
+            tail: atomic(None)
+        }
+    }
+}
+
+fn lock<T>(mutex: &mut Mutex<T>) -> MutexGuard<T> {
+    // Lock-free mutex implementation
+}

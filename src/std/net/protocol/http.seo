@@ -1,0 +1,19 @@
+type HttpRequest {
+    method: HttpMethod
+    url: Url
+    headers: HashMap<string, string>
+    body: Vector<u8>
+}
+
+type HttpResponse {
+    status: u16
+    headers: HashMap<string, string>
+    body: Vector<u8>
+}
+
+fn fetch(request: HttpRequest) -> Result<HttpResponse> {
+    // Modern HTTP/1.1, HTTP/2, and HTTP/3 support
+    let connection = establish_connection(request.url)?
+    send_request(connection, request)?
+    receive_response(connection)
+}

@@ -1,0 +1,39 @@
+module std.ui.core
+
+type Element {
+    // Core element properties
+    id: string
+    parent: Element?
+    children: []Element
+    
+    // Layout properties
+    width: Size
+    height: Size
+    padding: Spacing
+    margin: Spacing
+    
+    // Visual properties
+    background: Background
+    border: Border
+    shadow: Shadow?
+    
+    // Content and behavior
+    content: Content?
+    state: State
+    handlers: []EventHandler
+}
+
+type Size {
+    FILL           // Take all available space
+    WRAP           // Size to content
+    FIXED(float)   // Fixed size in pixels
+    PERCENT(float) // Percentage of parent
+}
+
+type Layout {
+    STACK   // Vertical stack
+    ROW     // Horizontal arrangement
+    GRID    // Grid layout
+    FLOW    // Automatic flow
+    CUSTOM(fn([]Element) -> []Rect)
+}

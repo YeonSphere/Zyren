@@ -1,0 +1,28 @@
+type Event {
+    timestamp: u64
+    source: EventSource
+    kind: EventKind
+    data: EventData
+}
+
+type EventKind {
+    MOUSE_MOVE
+    MOUSE_BUTTON
+    KEY_PRESS
+    KEY_RELEASE
+    WINDOW_RESIZE
+    WINDOW_CLOSE
+    CUSTOM(string)
+}
+
+type EventData {
+    mouse: MouseData?
+    key: KeyData?
+    window: WindowData?
+    custom: []byte?
+}
+
+type EventQueue {
+    events: []Event
+    listeners: map<EventKind, []EventHandler>
+}

@@ -1,0 +1,17 @@
+module std.io
+
+fn print(value: string) -> Result<void> {
+    // Print implementation
+}
+
+fn println(value: string) -> Result<void> {
+    // Println implementation
+}
+
+fn readLine() -> Result<string> {
+    // ReadLine implementation
+}
+
+fn readFile(path: string) -> Result<string> {
+    // ReadFile implementation
+}

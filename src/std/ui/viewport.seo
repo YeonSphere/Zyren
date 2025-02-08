@@ -1,0 +1,31 @@
+type Viewport {
+    content: Layer
+    scroll_offset: Point
+    zoom: float
+    input_handler: InputHandler
+}
+
+fn create_viewport(width: int, height: int) -> Viewport {
+    Viewport {
+        content: Layer {
+            id: "viewport",
+            content: create_surface(width, height, PixelFormat.RGBA8),
+            bounds: Rect{0, 0, width, height},
+            opacity: 1.0,
+            transform: Matrix4x4.identity(),
+            blend_mode: BlendMode.NORMAL
+        },
+        scroll_offset: Point{0, 0},
+        zoom: 1.0,
+        input_handler: create_input_handler()
+    }
+}
+
+fn handle_input(viewport: &mut Viewport, event: Event) {
+    // Handle scrolling, zooming, and other viewport interactions
+    match event.kind {
+        EventKind.SCROLL => update_scroll(viewport, event.data),
+        EventKind.PINCH => update_zoom(viewport, event.data),
+        _ => viewport.input_handler.process(event)
+    }
+}

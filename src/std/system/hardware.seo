@@ -1,0 +1,22 @@
+type SystemInfo {
+    cpu_cores: int
+    gpu_info: GpuInfo
+    memory: MemoryInfo
+    displays: []DisplayInfo
+}
+
+type GpuInfo {
+    vendor: string
+    model: string
+    memory: u64
+    features: []GpuFeature
+}
+
+fn get_system_info() -> SystemInfo {
+    // Query system capabilities for optimal resource usage
+}
+
+fn create_render_context(info: SystemInfo) -> RenderContext {
+    // Set up hardware-accelerated rendering based on
+    // available system capabilities
+}

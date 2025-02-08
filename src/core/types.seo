@@ -1,0 +1,33 @@
+module core.types
+
+// Primitive types
+type int = native
+type float = native
+type string = native
+type bool = native
+type byte = native
+type char = native
+
+// Result type for error handling
+type Result<T> {
+    value: T?
+    error: string?
+}
+
+// Option type for nullable values
+type Option<T> {
+    value: T?
+}
+
+// Array and slice types
+type Array<T> {
+    data: []T
+    length: int
+    capacity: int
+}
+
+// String utilities
+type StringBuilder {
+    data: []char
+    length: int
+}

@@ -1,0 +1,15 @@
+module compiler.parser
+
+import compiler.ast.nodes.{Node, NodeKind}
+import core.types.Result
+
+type Parser {
+    source: string
+    tokens: []Token
+    current: int
+    errors: []string
+}
+
+fn parse(source: string) -> Result<Node> {
+    // Parser implementation
+}

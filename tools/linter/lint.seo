@@ -1,0 +1,5 @@
+module tools.linter
+
+fn lintFile(path: string) -> Result<[]LintError> {
+    // Linter implementation
+}

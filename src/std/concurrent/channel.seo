@@ -1,0 +1,27 @@
+type Channel<T> {
+    sender: Sender<T>
+    receiver: Receiver<T>
+    buffer: RingBuffer<T>
+}
+
+type RingBuffer<T> {
+    data: []T
+    head: Atomic<usize>
+    tail: Atomic<usize>
+    capacity: usize
+}
+
+fn channel<T>(capacity: usize) -> Channel<T> {
+    let buffer = RingBuffer {
+        data: allocate(capacity * sizeof<T>()),
+        head: atomic(0),
+        tail: atomic(0),
+        capacity: capacity
+    }
+    
+    Channel {
+        sender: create_sender(buffer),
+        receiver: create_receiver(buffer),
+        buffer: buffer
+    }
+}

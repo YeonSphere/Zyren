@@ -1,0 +1,30 @@
+module tests.bootstrap.parser
+
+import bootstrap.parser.{parse, Node, NodeKind}
+import bootstrap.lexer.{tokenize}
+import std.testing.{assert_eq, assert_true}
+
+@test
+fn test_parse_function() {
+    let source = "fn main() -> int { return 0 }"
+    let tokens = tokenize(source)?
+    let ast = parse(tokens)?
+    
+    assert_eq(ast.kind, NodeKind.MODULE)
+    assert_eq(ast.children.length, 1)
+    
+    let fn_node = ast.children[0]
+    assert_eq(fn_node.kind, NodeKind.FUNCTION)
+    
+    let return_node = fn_node.children[0]
+    assert_eq(return_node.kind, NodeKind.RETURN_STMT)
+}
+
+@test
+fn test_parse_type() {
+    let source = "type Point { x: int, y: int }"
+    let tokens = tokenize(source)?
+    let ast = parse(tokens)?
+    
+    assert_eq(ast.children[0].kind, NodeKind.TYPE_DECL)
+}

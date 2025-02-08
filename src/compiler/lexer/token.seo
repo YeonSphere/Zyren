@@ -1,0 +1,53 @@
+module compiler.lexer.token
+
+/// Represents all possible token types in Seoggi
+type TokenType {
+    // Keywords
+    FN          // Function declaration
+    TYPE        // Type declaration
+    IMPORT      // Import statement
+    RETURN      // Return statement
+    IF          // If statement
+    ELSE        // Else clause
+    FOR         // For loop
+    WHILE       // While loop
+    
+    // Literals
+    INT_LIT     // Integer literal
+    FLOAT_LIT   // Float literal
+    STRING_LIT  // String literal
+    CHAR_LIT    // Character literal
+    BOOL_LIT    // Boolean literal
+    
+    // Operators
+    PLUS        // +
+    MINUS       // -
+    STAR        // *
+    SLASH       // /
+    EQUALS      // =
+    
+    // Delimiters
+    LPAREN      // (
+    RPAREN      // )
+    LBRACE      // {
+    RBRACE      // }
+    LBRACKET    // [
+    RBRACKET    // ]
+    
+    // Other
+    IDENTIFIER  // Variable/function names
+    DOT         // .
+    COMMA       // ,
+    COLON       // :
+    ARROW       // ->
+    EOF         // End of file
+}
+
+/// Represents a single token in the source code
+type Token {
+    type: TokenType       // Type of the token
+    value: string        // Actual text of the token
+    line: int           // Line number in source
+    column: int         // Column number in source
+    file: string        // Source file name
+}

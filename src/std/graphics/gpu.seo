@@ -1,0 +1,31 @@
+type Shader {
+    vertex: string
+    fragment: string
+    uniforms: map<string, UniformType>
+}
+
+type RenderPass {
+    target: RenderTarget
+    clear_color: Color?
+    depth_test: bool
+    blend_mode: BlendMode
+}
+
+type GraphicsContext {
+    device: GpuDevice
+    queue: CommandQueue
+    current_pass: RenderPass?
+}
+
+fn create_render_pipeline(shader: Shader) -> RenderPipeline {
+    // Create GPU pipeline for efficient rendering
+    let desc = PipelineDescriptor {
+        vertex_stage: compile_shader(shader.vertex),
+        fragment_stage: compile_shader(shader.fragment),
+        primitive: PrimitiveState.default(),
+        depth_stencil: DepthStencilState.default(),
+        multisample: MultisampleState.default()
+    }
+    
+    current_device().create_pipeline(desc)
+}

@@ -1,0 +1,24 @@
+type Allocator {
+    strategy: AllocStrategy
+    stats: AllocStats
+    blocks: []MemBlock
+}
+
+type MemBlock {
+    address: usize
+    size: usize
+    used: bool
+    next: MemBlock?
+}
+
+fn create_allocator(strategy: AllocStrategy) -> Allocator {
+    // Initialize memory allocator with specified strategy
+}
+
+fn alloc(size: usize, align: usize) -> *void {
+    // Allocate memory with proper alignment and tracking
+}
+
+fn dealloc(ptr: *void) {
+    // Free memory and coalesce blocks if possible
+}

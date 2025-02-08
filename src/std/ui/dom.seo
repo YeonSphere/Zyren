@@ -1,0 +1,33 @@
+module std.ui.dom
+
+type NodeType {
+    ELEMENT
+    TEXT
+    COMMENT
+}
+
+type Node {
+    type: NodeType
+    tag_name: string
+    attributes: map<string, string>
+    children: []Node
+    parent: Node?
+    text_content: string?
+}
+
+type Document {
+    root: Node
+    head: Node
+    body: Node
+}
+
+fn create_element(tag: string) -> Node {
+    Node{
+        type: NodeType.ELEMENT,
+        tag_name: tag,
+        attributes: {},
+        children: [],
+        parent: None,
+        text_content: None
+    }
+}

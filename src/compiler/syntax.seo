@@ -1,9 +1,0 @@
-// Syntax rules for Seoggi
-
-// Define the syntax structure and rules here.
-
-const syntaxRules = {
-    expression: 'IDENTIFIER | NUMBER',
-    statement: 'KEYWORD IDENTIFIER',
-    // Add more rules as needed
-};

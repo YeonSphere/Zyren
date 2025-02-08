@@ -1,0 +1,15 @@
+type Window {
+    handle: native
+    size: (int, int)
+    buffer: []byte
+    events: EventQueue
+}
+
+// Native window management
+fn create_window(title: string, size: (int, int)) -> Window {
+    // Creates raw window handle using platform APIs
+}
+
+fn swap_buffers(window: &Window) {
+    // Double buffering implementation
+}

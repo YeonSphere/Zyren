@@ -1,0 +1,20 @@
+type BTree<K, V> {
+    root: BNode<K, V>?
+    order: int
+    size: int
+}
+
+type BNode<K, V> {
+    keys: Vector<K>
+    values: Vector<V>
+    children: Vector<BNode<K, V>>
+    is_leaf: bool
+}
+
+fn create_btree<K, V>(order: int) -> BTree<K, V> {
+    BTree {
+        root: None,
+        order: order,
+        size: 0
+    }
+}

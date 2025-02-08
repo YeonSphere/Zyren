@@ -1,0 +1,23 @@
+type Atomic<T> {
+    value: T
+    state: AtomicState
+}
+
+type AtomicState {
+    locked: bool
+    version: u64
+}
+
+fn atomic<T>(value: T) -> Atomic<T> {
+    Atomic {
+        value: value,
+        state: AtomicState {
+            locked: false,
+            version: 0
+        }
+    }
+}
+
+fn compare_and_swap<T>(atomic: &mut Atomic<T>, expected: T, new: T) -> bool {
+    // Lock-free atomic operation implementation
+}

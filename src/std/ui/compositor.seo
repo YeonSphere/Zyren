@@ -1,0 +1,28 @@
+type Layer {
+    id: string
+    content: RenderTarget
+    bounds: Rect
+    opacity: float
+    transform: Matrix
+    filters: []Filter
+}
+
+type Scene {
+    layers: []Layer
+    root_transform: Matrix
+}
+
+fn compose(scene: Scene, output: RenderTarget) {
+    let compositor = create_compositor()
+    
+    // Set up render graph
+    for layer in scene.layers {
+        compositor.add_layer(layer)
+    }
+    
+    // Apply transformations and filters
+    compositor.process()
+    
+    // Final composition to screen
+    compositor.present(output)
+}

@@ -1,51 +1,7 @@
-# Ignore node_modules
-node_modules/
-
-# Build artifacts
-build/
-bin/
-*.exe
-*.dll
-*.so
-*.dylib
-
-# Ignore system files
-.DS_Store
-Thumbs.db
-
-# Ignore environment files
-.env
-.env.local
-.env.*.local
-
-# IDE and editor files
+bin/*
+build/*
+*.o
+*.out
 .vscode/
 .idea/
-*.swp
-*.swo
 *~
-
-# Generated files
-*.o
-*.obj
-*.lib
-*.a
-*.out
-
-# Platform-specific installers
-bootstrap/*/seo-install*
-
-# Dependencies
-/vendor/
-
-# Temporary files
-*.tmp
-*.temp
-*.log
-
-# Documentation generated
-docs/_build/
-
-# OS-specific files
-.DS_Store
-Thumbs.db

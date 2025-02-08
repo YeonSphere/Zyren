@@ -1,0 +1,21 @@
+type Vector<T> {
+    data: []T
+    length: int
+    capacity: int
+}
+
+fn create_vector<T>(capacity: int) -> Vector<T> {
+    Vector {
+        data: allocate(capacity * sizeof<T>()),
+        length: 0,
+        capacity: capacity
+    }
+}
+
+fn push<T>(vec: &mut Vector<T>, item: T) -> Result<void> {
+    // Dynamic array growth with amortized O(1) insertion
+}
+
+fn pop<T>(vec: &mut Vector<T>) -> Option<T> {
+    // Safe removal with bounds checking
+}

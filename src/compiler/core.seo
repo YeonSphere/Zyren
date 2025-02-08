@@ -1,0 +1,7 @@
+type Compiler {
+    lexer: Lexer
+    parser: Parser
+    type_checker: TypeChecker
+    optimizer: Optimizer
+    code_gen: CodeGenerator
+}
