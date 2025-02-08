@@ -1,6 +1,8 @@
-# Seoggi Programming Language
+# Zyren
+A modern system development framework.
 
-A modern systems programming language designed for performance, safety, and simplicity.
+## About
+Zyren (formerly known as Seoggi) provides...
 
 ## Core Design Philosophy
 - Zero-cost abstractions
