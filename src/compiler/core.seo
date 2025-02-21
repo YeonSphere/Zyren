@@ -1,7 +1,31 @@
+module compiler.core
+
+import compiler.lexer.{tokenize}
+import compiler.parser.{parse}
+import compiler.codegen.{generate}
+import runtime.vm.{VM, new_vm}
+import core.types.Result
+
 type Compiler {
-    lexer: Lexer
-    parser: Parser
-    type_checker: TypeChecker
-    optimizer: Optimizer
-    code_gen: CodeGenerator
+    source: string
+}
+
+fn new_compiler(source: string) -> Compiler {
+    Compiler {
+        source: source
+    }
+}
+
+fn compile_and_run(source: string) -> Result<()> {
+    // Lexical analysis and parsing
+    let ast = parse(source)?
+    
+    // Generate bytecode and constants
+    let (bytecode, constants) = generate(ast)?
+    
+    // Create and run VM
+    let vm = new_vm(constants)
+    vm.run(bytecode)?
+    
+    Ok(())
 }

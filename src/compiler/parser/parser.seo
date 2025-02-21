@@ -1,15 +1,112 @@
 module compiler.parser
 
 import compiler.ast.nodes.{Node, NodeKind}
+import compiler.lexer.token.{Token, TokenType}
 import core.types.Result
 
 type Parser {
-    source: string
     tokens: []Token
     current: int
     errors: []string
 }
 
+fn new_parser(tokens: []Token) -> Parser {
+    Parser {
+        tokens: tokens,
+        current: 0,
+        errors: []
+    }
+}
+
 fn parse(source: string) -> Result<Node> {
-    // Parser implementation
+    let tokens = tokenize(source)?
+    let parser = new_parser(tokens)
+    return parser.parse_module()
+}
+
+fn parse_module(self: &mut Parser) -> Result<Node> {
+    let module = new_node(NodeKind.MODULE, "")
+    
+    while !self.is_at_end() {
+        match self.peek().type {
+            TokenType.IMPORT => module.children.push(self.parse_import()?),
+            TokenType.FN => module.children.push(self.parse_function()?),
+            _ => return Err(f"Unexpected token {self.peek().lexeme}")
+        }
+    }
+    
+    Ok(module)
+}
+
+fn parse_function(self: &mut Parser) -> Result<Node> {
+    self.consume(TokenType.FN, "Expect 'fn' keyword")?
+    let name = self.consume(TokenType.IDENTIFIER, "Expect function name")?
+    
+    let func = new_node(NodeKind.FUNCTION, name.lexeme)
+    
+    self.consume(TokenType.LPAREN, "Expect '(' after function name")?
+    self.consume(TokenType.RPAREN, "Expect ')' after parameters")?
+    
+    // Parse function body
+    self.consume(TokenType.LBRACE, "Expect '{' before function body")?
+    func.children.push(self.parse_block()?)
+    
+    Ok(func)
+}
+
+fn parse_block(self: &mut Parser) -> Result<Node> {
+    let block = new_node(NodeKind.BLOCK, "")
+    
+    while !self.check(TokenType.RBRACE) && !self.is_at_end() {
+        block.children.push(self.parse_statement()?)
+    }
+    
+    self.consume(TokenType.RBRACE, "Expect '}' after block")?
+    Ok(block)
+}
+
+fn parse_statement(self: &mut Parser) -> Result<Node> {
+    match self.peek().type {
+        TokenType.RETURN => self.parse_return(),
+        _ => self.parse_expression_statement()
+    }
+}
+
+fn parse_return(self: &mut Parser) -> Result<Node> {
+    self.advance() // consume 'return'
+    let stmt = new_node(NodeKind.RETURN_STMT, "")
+    
+    if !self.check(TokenType.SEMICOLON) {
+        stmt.children.push(self.parse_expression()?)
+    }
+    
+    Ok(stmt)
+}
+
+fn parse_expression(self: &mut Parser) -> Result<Node> {
+    match self.peek().type {
+        TokenType.STRING => {
+            let token = self.advance()
+            Ok(new_node(NodeKind.STRING_LITERAL, token.lexeme))
+        },
+        TokenType.IDENTIFIER => {
+            let name = self.advance()
+            if self.match_token(TokenType.LPAREN) {
+                let call = new_node(NodeKind.CALL_EXPR, name.lexeme)
+                if !self.check(TokenType.RPAREN) {
+                    loop {
+                        call.children.push(self.parse_expression()?)
+                        if !self.match_token(TokenType.COMMA) {
+                            break
+                        }
+                    }
+                }
+                self.consume(TokenType.RPAREN, "Expect ')' after arguments")?
+                Ok(call)
+            } else {
+                Ok(new_node(NodeKind.IDENTIFIER, name.lexeme))
+            }
+        },
+        _ => Err(f"Unexpected token {self.peek().lexeme}")
+    }
 }

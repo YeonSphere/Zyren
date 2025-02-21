@@ -1,0 +1,92 @@
+module compiler.codegen
+
+import compiler.ast.nodes.{Node, NodeKind}
+import core.types.Result
+import runtime.vm.{Value, ValueType}
+
+type CodeGen {
+	instructions: []byte
+	constants: []Value
+	errors: []string
+}
+
+fn new_codegen() -> CodeGen {
+	CodeGen {
+		instructions: [],
+		constants: [],
+		errors: []
+	}
+}
+
+fn generate(ast: Node) -> Result<([]byte, []Value)> {
+	let gen = new_codegen()
+	gen.generate_node(ast)?
+	
+	if gen.errors.length > 0 {
+		return Err(join(gen.errors, "\n"))
+	}
+	
+	Ok((gen.instructions, gen.constants))
+}
+
+fn generate_node(self: &mut CodeGen, node: Node) -> Result<()> {
+	match node.kind {
+		NodeKind.MODULE => {
+			for child in node.children {
+				self.generate_node(child)?
+			}
+		},
+		NodeKind.FUNCTION => {
+			// For now, we only handle the main function
+			if node.value == "main" {
+				self.generate_block(node.children[0])?
+			}
+		},
+		NodeKind.BLOCK => {
+			for stmt in node.children {
+				self.generate_node(stmt)?
+			}
+		},
+		NodeKind.CALL_EXPR => {
+			// Push function name
+			let const_idx = self.add_constant(Value{
+				type: ValueType.STRING,
+				string_val: node.value
+			})
+			self.emit(Opcode.LOAD_CONST, const_idx)
+			
+			// Generate code for arguments
+			for arg in node.children {
+				self.generate_node(arg)?
+			}
+			
+			self.emit(Opcode.CALL, node.children.length)
+		},
+		NodeKind.STRING_LITERAL => {
+			let const_idx = self.add_constant(Value{
+				type: ValueType.STRING,
+				string_val: node.value
+			})
+			self.emit(Opcode.LOAD_CONST, const_idx)
+		},
+		NodeKind.RETURN_STMT => {
+			if node.children.length > 0 {
+				self.generate_node(node.children[0])?
+			}
+			self.emit(Opcode.RETURN, 0)
+		},
+		_ => self.errors.push(f"Unsupported node type: {node.kind}")
+	}
+	
+	Ok(())
+}
+
+fn emit(self: &mut CodeGen, opcode: Opcode, operand: byte) {
+	self.instructions.push(opcode)
+	self.instructions.push(operand)
+}
+
+fn add_constant(self: &mut CodeGen, value: Value) -> byte {
+	self.constants.push(value)
+	return (self.constants.length - 1) as byte
+}

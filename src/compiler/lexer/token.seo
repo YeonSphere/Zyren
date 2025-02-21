@@ -13,13 +13,11 @@ type TokenType {
     WHILE       // While loop
     
     // Literals
-    INT_LIT     // Integer literal
-    FLOAT_LIT   // Float literal
-    STRING_LIT  // String literal
-    CHAR_LIT    // Character literal
-    BOOL_LIT    // Boolean literal
+    NUMBER      // Numeric literal (combines INT_LIT and FLOAT_LIT)
+    STRING      // String literal
+    IDENTIFIER  // Variable/function names
     
-    // Operators
+    // Operators and symbols
     PLUS        // +
     MINUS       // -
     STAR        // *
@@ -35,7 +33,6 @@ type TokenType {
     RBRACKET    // ]
     
     // Other
-    IDENTIFIER  // Variable/function names
     DOT         // .
     COMMA       // ,
     COLON       // :
@@ -45,9 +42,8 @@ type TokenType {
 
 /// Represents a single token in the source code
 type Token {
-    type: TokenType       // Type of the token
-    value: string        // Actual text of the token
-    line: int           // Line number in source
-    column: int         // Column number in source
-    file: string        // Source file name
+    type: TokenType     // Type of the token
+    lexeme: string      // Actual text of the token
+    line: int          // Line number in source
+    column: int        // Column number in source
 }

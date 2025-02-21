@@ -4,21 +4,27 @@ type NodeKind {
     MODULE
     IMPORT
     FUNCTION
-    TYPE_DECL
-    VARIABLE
-    EXPRESSION
-    STATEMENT
     BLOCK
+    RETURN_STMT
+    CALL_EXPR
+    STRING_LITERAL
+    IDENTIFIER
 }
 
 type Node {
     kind: NodeKind
-    location: SourceLocation
+    value: string
     children: []Node
-}
-
-type SourceLocation {
-    file: string
     line: int
     column: int
+}
+
+fn new_node(kind: NodeKind, value: string) -> Node {
+    Node {
+        kind: kind,
+        value: value,
+        children: [],
+        line: 0,
+        column: 0
+    }
 }
