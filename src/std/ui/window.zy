@@ -1,0 +1,53 @@
+module std.ui.window
+
+type Window {
+    title: string
+    size: (int, int)
+    min_size: (int, int)
+    root: Element
+    state: WindowState
+}
+
+/**
+ * create_window
+ *
+ * Creates a new window with the specified title and root element.
+ *
+ * @param title The title of the window.
+ * @param root The root element of the window.
+ * @return Window The created window.
+ */
+fn create_window(title: string, root: Element) -> Result<Window> {
+    if title.is_empty() {
+        return Err("Window title cannot be empty")
+    }
+
+    if root.is_invalid() {
+        return Err("Invalid root element")
+    }
+
+    Ok(Window {
+        title: title,
+        size: (800, 600),
+        min_size: (200, 100),
+        root: root,
+        state: WindowState.NORMAL
+    })
+}
+
+/**
+ * show
+ *
+ * Displays the window.
+ *
+ * @param window The window to display.
+ */
+fn show(window: &Window) -> Result<void> {
+    // Platform-specific window creation and management
+    if window.state != WindowState.NORMAL {
+        return Err("Cannot show window in invalid state")
+    }
+
+    // Platform-specific code to show the window
+    Ok(())
+}
