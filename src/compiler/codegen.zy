@@ -1,0 +1,133 @@
+# Zyren Code Generator
+
+# Code Generator State
+struct CodeGenerator {
+    ast: ASTNode,
+    output: String
+}
+
+# Initialize Code Generator
+fn init_code_generator(ast: ASTNode) -> CodeGenerator {
+    return CodeGenerator {
+        ast: ast,
+        output: ""
+    }
+}
+
+# Generate Code
+fn generate_code(codegen: CodeGenerator) -> String {
+    codegen.output = ""
+    generate_node(codegen, codegen.ast)
+    return codegen.output
+}
+
+# Generate Node
+fn generate_node(codegen: CodeGenerator, node: ASTNode) {
+    match node.type {
+        ASTNodeType.PROGRAM => {
+            for child in node.children {
+                generate_node(codegen, child)
+            }
+        }
+        ASTNodeType.FUNCTION_DECLARATION => {
+            let func = node.value
+            codegen.output += "fn " + func.name + "("
+            for (i, param) in func.parameters.enumerate() {
+                if i > 0 {
+                    codegen.output += ", "
+                }
+                codegen.output += param.value.name + ": " + param.value.type
+            }
+            codegen.output += ") -> " + func.return_type + " {\n"
+            generate_node(codegen, func.body)
+            codegen.output += "}\n"
+        }
+        ASTNodeType.FUNCTION_CALL => {
+            let call = node.value
+            codegen.output += call.name + "("
+            for (i, arg) in call.arguments.enumerate() {
+                if i > 0 {
+                    codegen.output += ", "
+                }
+                generate_node(codegen, arg)
+            }
+            codegen.output += ")"
+        }
+        ASTNodeType.VARIABLE_DECLARATION => {
+            let var = node.value
+            codegen.output += "let " + var.name + ": " + var.type + "\n"
+        }
+        ASTNodeType.VARIABLE_ASSIGNMENT => {
+            let assign = node.value
+            codegen.output += assign.name + " = "
+            generate_node(codegen, assign.value)
+            codegen.output += "\n"
+        }
+        ASTNodeType.IF_STATEMENT => {
+            let if_stmt = node.value
+            codegen.output += "if "
+            generate_node(codegen, if_stmt.condition)
+            codegen.output += " {\n"
+            generate_node(codegen, if_stmt.true_block)
+            codegen.output += "}\n"
+            if if_stmt.false_block != None {
+                codegen.output += "else {\n"
+                generate_node(codegen, if_stmt.false_block)
+                codegen.output += "}\n"
+            }
+        }
+        ASTNodeType.FOR_LOOP => {
+            let for_loop = node.value
+            codegen.output += "for "
+            generate_node(codegen, for_loop.variable)
+            codegen.output += " in "
+            generate_node(codegen, for_loop.start)
+            codegen.output += ".."
+            generate_node(codegen, for_loop.end)
+            codegen.output += " {\n"
+            generate_node(codegen, for_loop.body)
+            codegen.output += "}\n"
+        }
+        ASTNodeType.WHILE_LOOP => {
+            let while_loop = node.value
+            codegen.output += "while "
+            generate_node(codegen, while_loop.condition)
+            codegen.output += " {\n"
+            generate_node(codegen, while_loop.body)
+            codegen.output += "}\n"
+        }
+        ASTNodeType.TRY_CATCH => {
+            let try_catch = node.value
+            codegen.output += "try {\n"
+            generate_node(codegen, try_catch.try_block)
+            codegen.output += "} catch {\n"
+            generate_node(codegen, try_catch.catch_block)
+            codegen.output += "}\n"
+        }
+        ASTNodeType.RETURN_STATEMENT => {
+            codegen.output += "return "
+            generate_node(codegen, node.value)
+            codegen.output += "\n"
+        }
+        ASTNodeType.BINARY_EXPRESSION => {
+            let bin_expr = node.value
+            generate_node(codegen, bin_expr.left)
+            codegen.output += " " + bin_expr.operator + " "
+            generate_node(codegen, bin_expr.right)
+        }
+        ASTNodeType.UNARY_EXPRESSION => {
+            let unary_expr = node.value
+            codegen.output += unary_expr.operator
+            generate_node(codegen, unary_expr.operand)
+        }
+        ASTNodeType.LITERAL => {
+            codegen.output += node.value
+        }
+        ASTNodeType.IDENTIFIER => {
+            codegen.output += node.value
+        }
+        _ => {
+            // Handle other node types if necessary
+        }
+    }
+}

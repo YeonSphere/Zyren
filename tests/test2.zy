@@ -1,0 +1,11 @@
+# Zyren Test - String Manipulation
+
+fn main() -> Int {
+    let result = concatenate("Hello, ", "Zyren!");
+    print(result);
+    return 0;
+}
+
+fn concatenate(str1: String, str2: String) -> String {
+    return str1 + str2;
+}

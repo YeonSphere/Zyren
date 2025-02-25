@@ -1,0 +1,21 @@
+# Zyren Example - Web Browser
+
+# Initialize web browser
+fn init_browser() {
+    // Implementation for initializing web browser
+    print("Web Browser Initialized")
+}
+
+# Render HTML
+fn render_html(html: String) {
+    // Implementation for rendering HTML
+    print("Rendering HTML: " + html)
+}
+
+# Main function for the web browser
+fn main() -> Int {
+    // Implementation for main function
+    init_browser();
+    render_html("<html><body><h1>Hello, Zyren!</h1></body></html>");
+    return 0;
+}

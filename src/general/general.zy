@@ -1,0 +1,115 @@
+# General-Purpose Functions for Zyren
+
+# Basic arithmetic operations
+fn add(a: Int, b: Int) -> Int {
+    return a + b;
+}
+
+fn subtract(a: Int, b: Int) -> Int {
+    return a - b;
+}
+
+fn multiply(a: Int, b: Int) -> Int {
+    return a * b;
+}
+
+fn divide(a: Int, b: Int) -> Float {
+    return a / b;
+}
+
+# String manipulation
+fn concatenate(str1: String, str2: String) -> String {
+    return str1 + str2;
+}
+
+fn substring(str: String, start: Int, end: Int) -> String {
+    return str[start:end];
+}
+
+# Data structures
+fn create_array(size: Int) -> Array {
+    return Array(size);
+}
+
+fn append_to_array(array: Array, value: Any) {
+    array.append(value);
+}
+
+fn remove_from_array(array: Array, index: Int) {
+    array.remove(index);
+}
+
+# Control structures
+fn if_else(condition: Bool, true_block: Function, false_block: Function) {
+    if condition {
+        true_block();
+    } else {
+        false_block();
+    }
+}
+
+fn for_loop(start: Int, end: Int, block: Function) {
+    for i in start..end {
+        block(i);
+    }
+}
+
+fn while_loop(condition: Function, block: Function) {
+    while condition() {
+        block();
+    }
+}
+
+# Error handling
+fn try_catch(try_block: Function, catch_block: Function) {
+    try {
+        try_block();
+    } catch {
+        catch_block();
+    }
+}
+
+# File I/O
+fn read_file(path: String) -> String {
+    // Implementation for reading a file
+}
+
+fn write_file(path: String, content: String) {
+    // Implementation for writing to a file
+}
+
+# Networking
+fn send_http_request(url: String, method: String, data: String) -> String {
+    // Implementation for sending an HTTP request
+}
+
+fn receive_http_response(response: String) -> String {
+    // Implementation for receiving an HTTP response
+}
+
+# Concurrency
+fn create_thread(function: Function) {
+    // Implementation for creating a thread
+}
+
+fn join_thread(thread: Thread) {
+    // Implementation for joining a thread
+}
+
+# Graphics
+fn draw_rectangle(x: Int, y: Int, width: Int, height: Int, color: String) {
+    // Implementation for drawing a rectangle
+}
+
+fn draw_circle(x: Int, y: Int, radius: Int, color: String) {
+    // Implementation for drawing a circle
+}
+
+# Events
+fn handle_event(event: String, handler: Function) {
+    // Implementation for handling events
+}
+
+fn emit_event(event: String) {
+    // Implementation for emitting events
+}

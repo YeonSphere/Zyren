@@ -1,118 +1,37 @@
-#!/bin/bash
+#!/usr/bin/env zsh
 
-# Define colors for output
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-BLUE='\033[0;34m'
-YELLOW='\033[0;33m'
-NC='\033[0m' # No Color
+# Zyren Build Script
 
-# Configuration
-PROJECT_ROOT=$(pwd)
-BUILD_DIR="${PROJECT_ROOT}/build"
-BIN_DIR="${PROJECT_ROOT}/bin"
-LIB_DIR="${PROJECT_ROOT}/lib"
-INSTALL_PREFIX="/usr/local"
+# Compile Zyren source files
+echo "Compiling Zyren source files..."
 
-# Ensure we exit on any error
-set -e
+# Lexer
+echo "Compiling lexer..."
+./zyrenc Zyren/src/compiler/lexer.zy -o Zyren/build/lexer.o
 
-# Print status message
-log() {
-    echo -e "${BLUE}[BUILD]${NC} $1"
-}
+# Parser
+echo "Compiling parser..."
+./zyrenc Zyren/src/compiler/parser.zy -o Zyren/build/parser.o
 
-# Print error message and exit
-error() {
-    echo -e "${RED}[ERROR]${NC} $1"
-    exit 1
-}
+# Code Generator
+echo "Compiling code generator..."
+./zyrenc Zyren/src/compiler/codegen.zy -o Zyren/build/codegen.o
 
-# Print warning message
-warn() {
-    echo -e "${YELLOW}[WARNING]${NC} $1"
-}
+# Virtual Machine
+echo "Compiling virtual machine..."
+./zyrenc Zyren/src/runtime/vm.zy -o Zyren/build/vm.o
 
-# Print success message
-success() {
-    echo -e "${GREEN}[SUCCESS]${NC} $1"
-}
+# Standard Library
+echo "Compiling standard library..."
+./zyrenc Zyren/src/stdlib/io.zy -o Zyren/build/io.o
+./zyrenc Zyren/src/stdlib/collections.zy -o Zyren/build/collections.o
+./zyrenc Zyren/src/stdlib/concurrent.zy -o Zyren/build/concurrent.o
+./zyrenc Zyren/src/stdlib/events.zy -o Zyren/build/events.o
+./zyrenc Zyren/src/stdlib/graphics.zy -o Zyren/build/graphics.o
+./zyrenc Zyren/src/stdlib/net.zy -o Zyren/build/net.o
 
-# Create required directories
-setup_dirs() {
-    log "Creating build directories..."
-    mkdir -p "${BUILD_DIR}"
-    mkdir -p "${BIN_DIR}"
-    mkdir -p "${LIB_DIR}"
-}
+# Linking
+echo "Linking compiled objects..."
+./zyrenc -o Zyren/build/zyren Zyren/build/lexer.o Zyren/build/parser.o Zyren/build/codegen.o Zyren/build/vm.o Zyren/build/io.o Zyren/build/collections.o Zyren/build/concurrent.o Zyren/build/events.o Zyren/build/graphics.o Zyren/build/net.o
 
-# Bootstrap phase - compile minimal compiler
-bootstrap() {
-    log "Starting bootstrap phase..."
-
-    # Compile bootstrap compiler
-    seoggi compile \
-        "${PROJECT_ROOT}/src/bootstrap.seo" \
-        -o "${BIN_DIR}/seoggi-bootstrap"
-
-    success "Bootstrap compiler built successfully"
-}
-
-# Build phase - compile full compiler
-build() {
-    log "Building Seoggi compiler..."
-
-    # Use bootstrap compiler to build full compiler
-    if ! "${BIN_DIR}/seoggi-bootstrap" compile \
-        "${PROJECT_ROOT}/src/compiler/main.seo" \
-        -o "${BIN_DIR}/seoggi"; then
-        error "Failed to build Seoggi compiler"
-    fi
-
-    success "Seoggi compiler built successfully"
-}
-
-# Install phase
-install() {
-    log "Installing Seoggi..."
-
-    # Create install directories
-    sudo mkdir -p "${INSTALL_PREFIX}/bin"
-    sudo mkdir -p "${INSTALL_PREFIX}/lib/seoggi"
-    sudo mkdir -p "${INSTALL_PREFIX}/include/seoggi"
-
-    # Install binaries and libraries
-    sudo cp "${BIN_DIR}/seoggi" "${INSTALL_PREFIX}/bin/"
-    sudo cp "${LIB_DIR}"/* "${INSTALL_PREFIX}/lib/seoggi/"
-    sudo cp -r "${PROJECT_ROOT}/src/std" "${INSTALL_PREFIX}/include/seoggi/"
-
-    success "Seoggi installed successfully"
-}
-
-# Test phase
-run_tests() {
-    log "Running tests..."
-
-    if ! "${BIN_DIR}/seoggi" test "${PROJECT_ROOT}/tests/**/*_test.seo"; then
-        warn "Some tests failed"
-    else
-        success "All tests passed"
-    fi
-}
-
-# Main build process
-main() {
-    setup_dirs
-    bootstrap
-    build
-    run_tests
-
-    if [ "$1" = "install" ]; then
-        install
-    fi
-
-    success "Build completed successfully"
-}
-
-# Execute main with all arguments
-main "$@"
+echo "Build complete!"

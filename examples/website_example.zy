@@ -1,0 +1,21 @@
+# Zyren Example - Website Creation
+
+# Initialize web server
+fn init_web_server() {
+    // Implementation for initializing web server
+    print("Web Server Initialized")
+}
+
+# Serve HTML
+fn serve_html(html: String) {
+    // Implementation for serving HTML
+    print("Serving HTML: " + html)
+}
+
+# Main function for the web server
+fn main() -> Int {
+    // Implementation for main function
+    init_web_server();
+    serve_html("<html><body><h1>Welcome to Zyren Website!</h1></body></html>");
+    return 0;
+}

@@ -1,0 +1,310 @@
+# Zyren Parser
+
+# AST Node Types
+enum ASTNodeType {
+    PROGRAM,
+    FUNCTION_DECLARATION,
+    FUNCTION_CALL,
+    VARIABLE_DECLARATION,
+    VARIABLE_ASSIGNMENT,
+    IF_STATEMENT,
+    FOR_LOOP,
+    WHILE_LOOP,
+    TRY_CATCH,
+    RETURN_STATEMENT,
+    BINARY_EXPRESSION,
+    UNARY_EXPRESSION,
+    LITERAL,
+    IDENTIFIER
+}
+
+# AST Node Structure
+struct ASTNode {
+    type: ASTNodeType,
+    value: Any,
+    children: Array<ASTNode>
+}
+
+# Parser State
+struct Parser {
+    tokens: Array<Token>,
+    position: Int,
+    current_token: Token
+}
+
+# Initialize Parser
+fn init_parser(tokens: Array<Token>) -> Parser {
+    return Parser {
+        tokens: tokens,
+        position: 0,
+        current_token: tokens[0]
+    }
+}
+
+# Advance Parser
+fn advance(parser: Parser) {
+    if parser.position < parser.tokens.length() {
+        parser.position += 1
+        parser.current_token = parser.tokens[parser.position]
+    } else {
+        parser.current_token = Token { type: TokenType.EOF, value: "" }
+    }
+}
+
+# Parse Program
+fn parse_program(parser: Parser) -> ASTNode {
+    let program = ASTNode { type: ASTNodeType.PROGRAM, value: None, children: Array<ASTNode>() }
+    while parser.current_token.type != TokenType.EOF {
+        let statement = parse_statement(parser)
+        program.children.append(statement)
+    }
+    return program
+}
+
+# Parse Statement
+fn parse_statement(parser: Parser) -> ASTNode {
+    if parser.current_token.type == TokenType.KEYWORD && parser.current_token.value == "fn" {
+        return parse_function_declaration(parser)
+    }
+    if parser.current_token.type == TokenType.KEYWORD && parser.current_token.value == "if" {
+        return parse_if_statement(parser)
+    }
+    if parser.current_token.type == TokenType.KEYWORD && parser.current_token.value == "for" {
+        return parse_for_loop(parser)
+    }
+    if parser.current_token.type == TokenType.KEYWORD && parser.current_token.value == "while" {
+        return parse_while_loop(parser)
+    }
+    if parser.current_token.type == TokenType.KEYWORD && parser.current_token.value == "try" {
+        return parse_try_catch(parser)
+    }
+    if parser.current_token.type == TokenType.KEYWORD && parser.current_token.value == "return" {
+        return parse_return_statement(parser)
+    }
+    return parse_expression(parser)
+}
+
+# Parse Function Declaration
+fn parse_function_declaration(parser: Parser) -> ASTNode {
+    advance(parser) // Skip 'fn' keyword
+    let name = parser.current_token.value
+    advance(parser) // Skip function name
+    let parameters = parse_parameters(parser)
+    advance(parser) // Skip '->' token
+    let return_type = parser.current_token.value
+    advance(parser) // Skip return type
+    let body = parse_block(parser)
+    return ASTNode {
+        type: ASTNodeType.FUNCTION_DECLARATION,
+        value: { name: name, parameters: parameters, return_type: return_type, body: body },
+        children: Array<ASTNode>()
+    }
+}
+
+# Parse Parameters
+fn parse_parameters(parser: Parser) -> Array<ASTNode> {
+    let parameters = Array<ASTNode>()
+    while parser.current_token.type != TokenType.PUNCTUATION && parser.current_token.value != ")" {
+        let parameter = parse_parameter(parser)
+        parameters.append(parameter)
+        if parser.current_token.type == TokenType.PUNCTUATION && parser.current_token.value == "," {
+            advance(parser) // Skip ',' token
+        }
+    }
+    return parameters
+}
+
+# Parse Parameter
+fn parse_parameter(parser: Parser) -> ASTNode {
+    let name = parser.current_token.value
+    advance(parser) // Skip parameter name
+    advance(parser) // Skip ':' token
+    let type = parser.current_token.value
+    advance(parser) // Skip parameter type
+    return ASTNode {
+        type: ASTNodeType.VARIABLE_DECLARATION,
+        value: { name: name, type: type },
+        children: Array<ASTNode>()
+    }
+}
+
+# Parse Block
+fn parse_block(parser: Parser) -> ASTNode {
+    let block = ASTNode { type: ASTNodeType.BLOCK, value: None, children: Array<ASTNode>() }
+    advance(parser) // Skip '{' token
+    while parser.current_token.type != TokenType.PUNCTUATION && parser.current_token.value != "}" {
+        let statement = parse_statement(parser)
+        block.children.append(statement)
+    }
+    advance(parser) // Skip '}' token
+    return block
+}
+
+# Parse If Statement
+fn parse_if_statement(parser: Parser) -> ASTNode {
+    advance(parser) // Skip 'if' keyword
+    let condition = parse_expression(parser)
+    let true_block = parse_block(parser)
+    let false_block = None
+    if parser.current_token.type == TokenType.KEYWORD && parser.current_token.value == "else" {
+        advance(parser) // Skip 'else' keyword
+        false_block = parse_block(parser)
+    }
+    return ASTNode {
+        type: ASTNodeType.IF_STATEMENT,
+        value: { condition: condition, true_block: true_block, false_block: false_block },
+        children: Array<ASTNode>()
+    }
+}
+
+# Parse For Loop
+fn parse_for_loop(parser: Parser) -> ASTNode {
+    advance(parser) // Skip 'for' keyword
+    let variable = parse_variable_declaration(parser)
+    advance(parser) // Skip 'in' keyword
+    let start = parse_expression(parser)
+    advance(parser) // Skip '..' token
+    let end = parse_expression(parser)
+    let body = parse_block(parser)
+    return ASTNode {
+        type: ASTNodeType.FOR_LOOP,
+        value: { variable: variable, start: start, end: end, body: body },
+        children: Array<ASTNode>()
+    }
+}
+
+# Parse While Loop
+fn parse_while_loop(parser: Parser) -> ASTNode {
+    advance(parser) // Skip 'while' keyword
+    let condition = parse_expression(parser)
+    let body = parse_block(parser)
+    return ASTNode {
+        type: ASTNodeType.WHILE_LOOP,
+        value: { condition: condition, body: body },
+        children: Array<ASTNode>()
+    }
+}
+
+# Parse Try Catch
+fn parse_try_catch(parser: Parser) -> ASTNode {
+    advance(parser) // Skip 'try' keyword
+    let try_block = parse_block(parser)
+    advance(parser) // Skip 'catch' keyword
+    let catch_block = parse_block(parser)
+    return ASTNode {
+        type: ASTNodeType.TRY_CATCH,
+        value: { try_block: try_block, catch_block: catch_block },
+        children: Array<ASTNode>()
+    }
+}
+
+# Parse Return Statement
+fn parse_return_statement(parser: Parser) -> ASTNode {
+    advance(parser) // Skip 'return' keyword
+    let expression = parse_expression(parser)
+    return ASTNode {
+        type: ASTNodeType.RETURN_STATEMENT,
+        value: expression,
+        children: Array<ASTNode>()
+    }
+}
+
+# Parse Expression
+fn parse_expression(parser: Parser) -> ASTNode {
+    let left = parse_term(parser)
+    while parser.current_token.type == TokenType.OPERATOR {
+        let operator = parser.current_token.value
+        advance(parser) // Skip operator
+        let right = parse_term(parser)
+        left = ASTNode {
+            type: ASTNodeType.BINARY_EXPRESSION,
+            value: { operator: operator, left: left, right: right },
+            children: Array<ASTNode>()
+        }
+    }
+    return left
+}
+
+# Parse Term
+fn parse_term(parser: Parser) -> ASTNode {
+    if parser.current_token.type == TokenType.IDENTIFIER {
+        let name = parser.current_token.value
+        advance(parser) // Skip identifier
+        if parser.current_token.type == TokenType.PUNCTUATION && parser.current_token.value == "(" {
+            return parse_function_call(parser, name)
+        }
+        return ASTNode {
+            type: ASTNodeType.IDENTIFIER,
+            value: name,
+            children: Array<ASTNode>()
+        }
+    }
+    if parser.current_token.type == TokenType.LITERAL {
+        let value = parser.current_token.value
+        advance(parser) // Skip literal
+        return ASTNode {
+            type: ASTNodeType.LITERAL,
+            value: value,
+            children: Array<ASTNode>()
+        }
+    }
+    if parser.current_token.type == TokenType.PUNCTUATION && parser.current_token.value == "(" {
+        advance(parser) // Skip '(' token
+        let expression = parse_expression(parser)
+        advance(parser) // Skip ')' token
+        return expression
+    }
+    if parser.current_token.type == TokenType.OPERATOR && parser.current_token.value == "-" {
+        advance(parser) // Skip '-' operator
+        let operand = parse_term(parser)
+        return ASTNode {
+            type: ASTNodeType.UNARY_EXPRESSION,
+            value: { operator: "-", operand: operand },
+            children: Array<ASTNode>()
+        }
+    }
+    return ASTNode {
+        type: ASTNodeType.LITERAL,
+        value: None,
+        children: Array<ASTNode>()
+    }
+}
+
+# Parse Function Call
+fn parse_function_call(parser: Parser, name: String) -> ASTNode {
+    advance(parser) // Skip '(' token
+    let arguments = parse_arguments(parser)
+    advance(parser) // Skip ')' token
+    return ASTNode {
+        type: ASTNodeType.FUNCTION_CALL,
+        value: { name: name, arguments: arguments },
+        children: Array<ASTNode>()
+    }
+}
+
+# Parse Arguments
+fn parse_arguments(parser: Parser) -> Array<ASTNode> {
+    let arguments = Array<ASTNode>()
+    while parser.current_token.type != TokenType.PUNCTUATION && parser.current_token.value != ")" {
+        let argument = parse_expression(parser)
+        arguments.append(argument)
+        if parser.current_token.type == TokenType.PUNCTUATION && parser.current_token.value == "," {
+            advance(parser) // Skip ',' token
+        }
+    }
+    return arguments
+}
+
+# Parse Variable Declaration
+fn parse_variable_declaration(parser: Parser) -> ASTNode {
+    let name = parser.current_token.value
+    advance(parser) // Skip variable name
+    advance(parser) // Skip ':' token
+    let type = parser.current_token.value
+    advance(parser) // Skip variable type
+    return ASTNode {
+        type: ASTNodeType.VARIABLE_DECLARATION,
+        value: { name: name, type: type },
+        children: Array<ASTNode>()
+    }
+}

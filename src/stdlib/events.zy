@@ -1,0 +1,70 @@
+# Zyren Standard Library - Events
+
+# Event Structure
+struct Event {
+    name: String,
+    data: Any
+}
+
+# Event Listener Structure
+struct EventListener {
+    event_name: String,
+    handler: Function
+}
+
+# Event Emitter Structure
+struct EventEmitter {
+    listeners: Array<EventListener>
+}
+
+# Initialize Event Emitter
+fn init_event_emitter() -> EventEmitter {
+    return EventEmitter {
+        listeners: Array<EventListener>()
+    }
+}
+
+# Add Event Listener
+fn add_event_listener(emitter: EventEmitter, event_name: String, handler: Function) {
+    let listener = EventListener {
+        event_name: event_name,
+        handler: handler
+    }
+    emitter.listeners.append(listener)
+}
+
+# Remove Event Listener
+fn remove_event_listener(emitter: EventEmitter, event_name: String, handler: Function) {
+    for (i, listener) in emitter.listeners.enumerate() {
+        if listener.event_name == event_name && listener.handler == handler {
+            emitter.listeners.remove(i)
+            return
+        }
+    }
+}
+
+# Emit Event
+fn emit_event(emitter: EventEmitter, event: Event) {
+    for listener in emitter.listeners {
+        if listener.event_name == event.name {
+            listener.handler(event)
+        }
+    }
+}
+
+# Create Event
+fn create_event(name: String, data: Any) -> Event {
+    return Event {
+        name: name,
+        data: data
+    }
+}
+
+# Helper Functions
+fn get_event_name(event: Event) -> String {
+    return event.name
+}
+
+fn get_event_data(event: Event) -> Any {
+    return event.data
+}

@@ -1,0 +1,21 @@
+# Process Scheduling Functions for Zyren
+
+# Add process
+fn add_process(pid: Int, entry_point: Function, priority: Int) {
+    // Implementation for adding process
+}
+
+# Set process state
+fn set_process_state(pid: Int, state: ProcessState) {
+    // Implementation for setting process state
+}
+
+# Schedule processes
+fn schedule() {
+    // Implementation for scheduling processes
+}
+
+# Initialize scheduler
+fn init_scheduler() {
+    // Implementation for initializing scheduler
+}

@@ -1,0 +1,204 @@
+# Zyren Standard Library - Collections
+
+# Array Structure
+struct Array<T> {
+    elements: Array<T>,
+    size: Int
+}
+
+# Initialize Array
+fn init_array<T>() -> Array<T> {
+    return Array<T> {
+        elements: Array<T>(),
+        size: 0
+    }
+}
+
+# Append to Array
+fn append<T>(array: Array<T>, value: T) {
+    array.elements.append(value)
+    array.size += 1
+}
+
+# Remove from Array
+fn remove<T>(array: Array<T>, index: Int) {
+    if index >= 0 && index < array.size {
+        array.elements.remove(index)
+        array.size -= 1
+    }
+}
+
+# Get Array Element
+fn get<T>(array: Array<T>, index: Int) -> T {
+    if index >= 0 && index < array.size {
+        return array.elements[index]
+    }
+    return None
+}
+
+# Set Array Element
+fn set<T>(array: Array<T>, index: Int, value: T) {
+    if index >= 0 && index < array.size {
+        array.elements[index] = value
+    }
+}
+
+# Get Array Size
+fn size<T>(array: Array<T>) -> Int {
+    return array.size
+}
+
+# List Structure
+struct List<T> {
+    head: Node<T>,
+    tail: Node<T>,
+    size: Int
+}
+
+# Node Structure
+struct Node<T> {
+    value: T,
+    next: Node<T>
+}
+
+# Initialize List
+fn init_list<T>() -> List<T> {
+    return List<T> {
+        head: None,
+        tail: None,
+        size: 0
+    }
+}
+
+# Append to List
+fn append<T>(list: List<T>, value: T) {
+    let new_node = Node<T> {
+        value: value,
+        next: None
+    }
+    if list.size == 0 {
+        list.head = new_node
+        list.tail = new_node
+    } else {
+        list.tail.next = new_node
+        list.tail = new_node
+    }
+    list.size += 1
+}
+
+# Remove from List
+fn remove<T>(list: List<T>, value: T) {
+    let current = list.head
+    let previous = None
+    while current != None {
+        if current.value == value {
+            if previous == None {
+                list.head = current.next
+            } else {
+                previous.next = current.next
+            }
+            if current == list.tail {
+                list.tail = previous
+            }
+            list.size -= 1
+            return
+        }
+        previous = current
+        current = current.next
+    }
+}
+
+# Get List Element
+fn get<T>(list: List<T>, index: Int) -> T {
+    let current = list.head
+    let count = 0
+    while current != None {
+        if count == index {
+            return current.value
+        }
+        current = current.next
+        count += 1
+    }
+    return None
+}
+
+# Set List Element
+fn set<T>(list: List<T>, index: Int, value: T) {
+    let current = list.head
+    let count = 0
+    while current != None {
+        if count == index {
+            current.value = value
+            return
+        }
+        current = current.next
+        count += 1
+    }
+}
+
+# Get List Size
+fn size<T>(list: List<T>) -> Int {
+    return list.size
+}
+
+# Map Structure
+struct Map<K, V> {
+    entries: Array<Entry<K, V>>,
+    size: Int
+}
+
+# Entry Structure
+struct Entry<K, V> {
+    key: K,
+    value: V
+}
+
+# Initialize Map
+fn init_map<K, V>() -> Map<K, V> {
+    return Map<K, V> {
+        entries: Array<Entry<K, V>>(),
+        size: 0
+    }
+}
+
+# Set Map Entry
+fn set<K, V>(map: Map<K, V>, key: K, value: V) {
+    for entry in map.entries {
+        if entry.key == key {
+            entry.value = value
+            return
+        }
+    }
+    let new_entry = Entry<K, V> {
+        key: key,
+        value: value
+    }
+    map.entries.append(new_entry)
+    map.size += 1
+}
+
+# Get Map Entry
+fn get<K, V>(map: Map<K, V>, key: K) -> V {
+    for entry in map.entries {
+        if entry.key == key {
+            return entry.value
+        }
+    }
+    return None
+}
+
+# Remove Map Entry
+fn remove<K, V>(map: Map<K, V>, key: K) {
+    for (i, entry) in map.entries.enumerate() {
+        if entry.key == key {
+            map.entries.remove(i)
+            map.size -= 1
+            return
+        }
+    }
+}
+
+# Get Map Size
+fn size<K, V>(map: Map<K, V>) -> Int {
+    return map.size
+}

@@ -1,101 +1,198 @@
-module runtime.vm
+# Zyren Virtual Machine
 
-import core.types.{Result}
+# Virtual Machine State
+struct VM {
+    memory: Array<Byte>,
+    stack: Array<Int>,
+    heap: Array<Byte>,
+    registers: Array<Int>,
+    program_counter: Int,
+    instruction_pointer: Int
+}
 
-type Value {
-    type: ValueType
-    data: union {
-        int_val: int
-        float_val: float
-        string_val: string
-        bool_val: bool
+# Initialize Virtual Machine
+fn init_vm() -> VM {
+    return VM {
+        memory: Array<Byte>(1024 * 1024), // 1 MB of memory
+        stack: Array<Int>(),
+        heap: Array<Byte>(),
+        registers: Array<Int>(8), // 8 general-purpose registers
+        program_counter: 0,
+        instruction_pointer: 0
     }
 }
 
-type ValueType {
-    INT
-    FLOAT
-    STRING
-    BOOL
-    NULL
-}
-
-type VM {
-    stack: []Value
-    sp: int  // Stack pointer
-    globals: map<string, Value>
-    constants: []Value
-}
-
-fn new_vm(constants: []Value) -> VM {
-    VM {
-        stack: [Value; 256],  // Fixed stack size for now
-        sp: 0,
-        globals: {},
-        constants: constants
+# Load Program into Memory
+fn load_program(vm: VM, program: Array<Byte>) {
+    for (i, byte) in program.enumerate() {
+        vm.memory[i] = byte
     }
 }
 
-fn push(self: &mut VM, value: Value) -> Result<()> {
-    if self.sp >= self.stack.length {
-        return Err("Stack overflow")
+# Execute Program
+fn execute_program(vm: VM) {
+    while vm.instruction_pointer < vm.memory.length() {
+        let opcode = vm.memory[vm.instruction_pointer]
+        vm.instruction_pointer += 1
+        execute_instruction(vm, opcode)
     }
-    self.stack[self.sp] = value
-    self.sp += 1
-    Ok(())
 }
 
-fn pop(self: &mut VM) -> Result<Value> {
-    if self.sp <= 0 {
-        return Err("Stack underflow")
-    }
-    self.sp -= 1
-    Ok(self.stack[self.sp])
-}
-
-fn run(self: &mut VM, instructions: []byte) -> Result<Value> {
-    let ip = 0  // Instruction pointer
-    
-    while ip < instructions.length {
-        let opcode = instructions[ip]
-        ip += 1
-        
-        match opcode {
-            Opcode.LOAD_CONST => {
-                let const_idx = instructions[ip]
-                ip += 1
-                self.push(self.constants[const_idx])?
-            },
-            Opcode.CALL => {
-                let arg_count = instructions[ip]
-                ip += 1
-                self.execute_call(arg_count)?
-            },
-            Opcode.RETURN => {
-                if self.sp > 0 {
-                    return Ok(self.pop()?)
-                }
-                return Ok(Value{type: ValueType.NULL})
-            },
-            _ => return Err(f"Unknown opcode: {opcode}")
+# Execute Instruction
+fn execute_instruction(vm: VM, opcode: Byte) {
+    match opcode {
+        0x01 => {
+            // NOP (No Operation)
+        }
+        0x02 => {
+            // LOAD (Load value into register)
+            let reg = vm.memory[vm.instruction_pointer]
+            vm.instruction_pointer += 1
+            let value = vm.memory[vm.instruction_pointer]
+            vm.instruction_pointer += 1
+            vm.registers[reg] = value
+        }
+        0x03 => {
+            // STORE (Store value from register into memory)
+            let reg = vm.memory[vm.instruction_pointer]
+            vm.instruction_pointer += 1
+            let address = vm.memory[vm.instruction_pointer]
+            vm.instruction_pointer += 1
+            vm.memory[address] = vm.registers[reg]
+        }
+        0x04 => {
+            // ADD (Add values from two registers and store in a third register)
+            let reg1 = vm.memory[vm.instruction_pointer]
+            vm.instruction_pointer += 1
+            let reg2 = vm.memory[vm.instruction_pointer]
+            vm.instruction_pointer += 1
+            let reg3 = vm.memory[vm.instruction_pointer]
+            vm.instruction_pointer += 1
+            vm.registers[reg3] = vm.registers[reg1] + vm.registers[reg2]
+        }
+        0x05 => {
+            // SUB (Subtract values from two registers and store in a third register)
+            let reg1 = vm.memory[vm.instruction_pointer]
+            vm.instruction_pointer += 1
+            let reg2 = vm.memory[vm.instruction_pointer]
+            vm.instruction_pointer += 1
+            let reg3 = vm.memory[vm.instruction_pointer]
+            vm.instruction_pointer += 1
+            vm.registers[reg3] = vm.registers[reg1] - vm.registers[reg2]
+        }
+        0x06 => {
+            // MUL (Multiply values from two registers and store in a third register)
+            let reg1 = vm.memory[vm.instruction_pointer]
+            vm.instruction_pointer += 1
+            let reg2 = vm.memory[vm.instruction_pointer]
+            vm.instruction_pointer += 1
+            let reg3 = vm.memory[vm.instruction_pointer]
+            vm.instruction_pointer += 1
+            vm.registers[reg3] = vm.registers[reg1] * vm.registers[reg2]
+        }
+        0x07 => {
+            // DIV (Divide values from two registers and store in a third register)
+            let reg1 = vm.memory[vm.instruction_pointer]
+            vm.instruction_pointer += 1
+            let reg2 = vm.memory[vm.instruction_pointer]
+            vm.instruction_pointer += 1
+            let reg3 = vm.memory[vm.instruction_pointer]
+            vm.instruction_pointer += 1
+            vm.registers[reg3] = vm.registers[reg1] / vm.registers[reg2]
+        }
+        0x08 => {
+            // JMP (Jump to a specific address)
+            let address = vm.memory[vm.instruction_pointer]
+            vm.instruction_pointer += 1
+            vm.instruction_pointer = address
+        }
+        0x09 => {
+            // JZ (Jump to a specific address if a register is zero)
+            let reg = vm.memory[vm.instruction_pointer]
+            vm.instruction_pointer += 1
+            let address = vm.memory[vm.instruction_pointer]
+            vm.instruction_pointer += 1
+            if vm.registers[reg] == 0 {
+                vm.instruction_pointer = address
+            }
+        }
+        0x0A => {
+            // PUSH (Push value from register onto the stack)
+            let reg = vm.memory[vm.instruction_pointer]
+            vm.instruction_pointer += 1
+            vm.stack.append(vm.registers[reg])
+        }
+        0x0B => {
+            // POP (Pop value from the stack into a register)
+            let reg = vm.memory[vm.instruction_pointer]
+            vm.instruction_pointer += 1
+            vm.registers[reg] = vm.stack.pop()
+        }
+        0x0C => {
+            // CALL (Call a function)
+            let address = vm.memory[vm.instruction_pointer]
+            vm.instruction_pointer += 1
+            vm.stack.append(vm.instruction_pointer)
+            vm.instruction_pointer = address
+        }
+        0x0D => {
+            // RET (Return from a function)
+            vm.instruction_pointer = vm.stack.pop()
+        }
+        _ => {
+            // Handle other opcodes if necessary
         }
     }
-    
-    Ok(Value{type: ValueType.NULL})
 }
 
-fn execute_call(self: &mut VM, arg_count: int) -> Result<()> {
-    // For now, just handle built-in print function
-    let func = self.pop()?
-    if func.type == ValueType.STRING && func.string_val == "print" {
-        if arg_count != 1 {
-            return Err("print expects 1 argument")
-        }
-        let arg = self.pop()?
-        print(arg.string_val)
-        self.push(Value{type: ValueType.NULL})?
-    } else {
-        return Err(f"Unknown function: {func.string_val}")
+# Helper Functions
+fn push_stack(vm: VM, value: Int) {
+    vm.stack.append(value)
+}
+
+fn pop_stack(vm: VM) -> Int {
+    return vm.stack.pop()
+}
+
+fn load_register(vm: VM, reg: Int, value: Int) {
+    vm.registers[reg] = value
+}
+
+fn store_register(vm: VM, reg: Int, address: Int) {
+    vm.memory[address] = vm.registers[reg]
+}
+
+fn add_registers(vm: VM, reg1: Int, reg2: Int, reg3: Int) {
+    vm.registers[reg3] = vm.registers[reg1] + vm.registers[reg2]
+}
+
+fn subtract_registers(vm: VM, reg1: Int, reg2: Int, reg3: Int) {
+    vm.registers[reg3] = vm.registers[reg1] - vm.registers[reg2]
+}
+
+fn multiply_registers(vm: VM, reg1: Int, reg2: Int, reg3: Int) {
+    vm.registers[reg3] = vm.registers[reg1] * vm.registers[reg2]
+}
+
+fn divide_registers(vm: VM, reg1: Int, reg2: Int, reg3: Int) {
+    vm.registers[reg3] = vm.registers[reg1] / vm.registers[reg2]
+}
+
+fn jump(vm: VM, address: Int) {
+    vm.instruction_pointer = address
+}
+
+fn jump_if_zero(vm: VM, reg: Int, address: Int) {
+    if vm.registers[reg] == 0 {
+        vm.instruction_pointer = address
     }
-    Ok(())
+}
+
+fn call(vm: VM, address: Int) {
+    vm.stack.append(vm.instruction_pointer)
+    vm.instruction_pointer = address
+}
+
+fn return(vm: VM) {
+    vm.instruction_pointer = vm.stack.pop()
 }

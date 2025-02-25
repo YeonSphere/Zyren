@@ -1,0 +1,23 @@
+# Zyren Test - Control Structures
+
+fn main() -> Int {
+    let condition = true;
+    if_else(condition, true_block, false_block);
+    return 0;
+}
+
+fn true_block() {
+    print("Condition is true");
+}
+
+fn false_block() {
+    print("Condition is false");
+}
+
+fn if_else(condition: Bool, true_block: Function, false_block: Function) {
+    if condition {
+        true_block();
+    } else {
+        false_block();
+    }
+}

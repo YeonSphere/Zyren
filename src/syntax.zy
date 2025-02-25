@@ -1,0 +1,113 @@
+# Zyren Syntax Definition
+
+## Keywords
+- fn: Define a function
+- return: Return a value from a function
+- if: Conditional statement
+- else: Else clause for conditional statements
+- for: Loop statement
+- while: Loop statement
+- try: Try block for error handling
+- catch: Catch block for error handling
+- import: Import a module
+
+## Data Types
+- Int: Integer type
+- Float: Floating-point type
+- String: String type
+- Bool: Boolean type
+- Array: Array type
+- Function: Function type
+- Pointer: Pointer type
+- Any: Any type
+
+## Basic Syntax
+
+### Functions
+```zy
+fn function_name(parameter1: Type1, parameter2: Type2) -> ReturnType {
+    // Function body
+}
+```
+
+### Control Structures
+```zy
+if condition {
+    // True block
+} else {
+    // False block
+}
+
+for i in start..end {
+    // Loop body
+}
+
+while condition() {
+    // Loop body
+}
+```
+
+### Error Handling
+```zy
+try {
+    // Try block
+} catch {
+    // Catch block
+}
+```
+
+### Importing Modules
+```zy
+import module_name
+```
+
+## Examples
+
+### Basic Function
+```zy
+fn add(a: Int, b: Int) -> Int {
+    return a + b;
+}
+```
+
+### Control Structures
+```zy
+fn if_else(condition: Bool, true_block: Function, false_block: Function) {
+    if condition {
+        true_block();
+    } else {
+        false_block();
+    }
+}
+
+fn for_loop(start: Int, end: Int, block: Function) {
+    for i in start..end {
+        block(i);
+    }
+}
+
+fn while_loop(condition: Function, block: Function) {
+    while condition() {
+        block();
+    }
+}
+```
+
+### Error Handling
+```zy
+fn try_catch(try_block: Function, catch_block: Function) {
+    try {
+        try_block();
+    } catch {
+        catch_block();
+    }
+}
+```
+
+### Importing Modules
+```zy
+import stdlib/io
+```
+
+## Conclusion
+This file defines the syntax for the Zyren programming language, including keywords, data types, control structures, and other language features. For more detailed information, refer to the specific modules and examples provided in the Zyren source code.

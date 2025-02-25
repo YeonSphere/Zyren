@@ -1,0 +1,105 @@
+# Zyren Standard Library - Graphics
+
+# Point Structure
+struct Point {
+    x: Int,
+    y: Int
+}
+
+# Color Structure
+struct Color {
+    r: Int,
+    g: Int,
+    b: Int,
+    a: Int
+}
+
+# Rectangle Structure
+struct Rectangle {
+    top_left: Point,
+    width: Int,
+    height: Int
+}
+
+# Initialize Point
+fn init_point(x: Int, y: Int) -> Point {
+    return Point {
+        x: x,
+        y: y
+    }
+}
+
+# Initialize Color
+fn init_color(r: Int, g: Int, b: Int, a: Int) -> Color {
+    return Color {
+        r: r,
+        g: g,
+        b: b,
+        a: a
+    }
+}
+
+# Initialize Rectangle
+fn init_rectangle(top_left: Point, width: Int, height: Int) -> Rectangle {
+    return Rectangle {
+        top_left: top_left,
+        width: width,
+        height: height
+    }
+}
+
+# Draw Point
+fn draw_point(point: Point, color: Color) {
+    // Implementation for drawing a point
+}
+
+# Draw Line
+fn draw_line(start: Point, end: Point, color: Color) {
+    // Implementation for drawing a line
+}
+
+# Draw Rectangle
+fn draw_rectangle(rect: Rectangle, color: Color) {
+    // Implementation for drawing a rectangle
+}
+
+# Draw Circle
+fn draw_circle(center: Point, radius: Int, color: Color) {
+    // Implementation for drawing a circle
+}
+
+# Fill Rectangle
+fn fill_rectangle(rect: Rectangle, color: Color) {
+    // Implementation for filling a rectangle
+}
+
+# Fill Circle
+fn fill_circle(center: Point, radius: Int, color: Color) {
+    // Implementation for filling a circle
+}
+
+# Set Pixel
+fn set_pixel(point: Point, color: Color) {
+    // Implementation for setting a pixel
+}
+
+# Get Pixel
+fn get_pixel(point: Point) -> Color {
+    // Implementation for getting a pixel
+}
+
+# Clear Screen
+fn clear_screen(color: Color) {
+    // Implementation for clearing the screen
+}
+
+# Helper Functions
+fn distance(point1: Point, point2: Point) -> Float {
+    let dx = point1.x - point2.x
+    let dy = point1.y - point2.y
+    return sqrt(dx * dx + dy * dy)
+}
+
+fn sqrt(value: Float) -> Float {
+    // Implementation for square root function
+}

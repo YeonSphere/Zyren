@@ -1,0 +1,121 @@
+# Zyren Standard Library - I/O Operations
+
+# Read from Standard Input
+fn read_line() -> String {
+    // Implementation for reading a line from standard input
+}
+
+# Write to Standard Output
+fn print(value: String) {
+    // Implementation for writing to standard output
+}
+
+# Write to Standard Error
+fn print_error(value: String) {
+    // Implementation for writing to standard error
+}
+
+# Open File
+fn open_file(path: String, mode: String) -> File {
+    // Implementation for opening a file
+}
+
+# Close File
+fn close_file(file: File) {
+    // Implementation for closing a file
+}
+
+# Read from File
+fn read_file(file: File) -> String {
+    // Implementation for reading from a file
+}
+
+# Write to File
+fn write_file(file: File, content: String) {
+    // Implementation for writing to a file
+}
+
+# Seek in File
+fn seek_file(file: File, position: Int) {
+    // Implementation for seeking in a file
+}
+
+# Get File Position
+fn get_file_position(file: File) -> Int {
+    // Implementation for getting the current position in a file
+}
+
+# Get File Size
+fn get_file_size(file: File) -> Int {
+    // Implementation for getting the size of a file
+}
+
+# Check if File Exists
+fn file_exists(path: String) -> Bool {
+    // Implementation for checking if a file exists
+}
+
+# Delete File
+fn delete_file(path: String) {
+    // Implementation for deleting a file
+}
+
+# Create Directory
+fn create_directory(path: String) {
+    // Implementation for creating a directory
+}
+
+# Delete Directory
+fn delete_directory(path: String) {
+    // Implementation for deleting a directory
+}
+
+# List Directory Contents
+fn list_directory(path: String) -> Array<String> {
+    // Implementation for listing directory contents
+}
+
+# Change Directory
+fn change_directory(path: String) {
+    // Implementation for changing the current directory
+}
+
+# Get Current Directory
+fn get_current_directory() -> String {
+    // Implementation for getting the current directory
+}
+
+# Get File Attributes
+fn get_file_attributes(path: String) -> FileAttributes {
+    // Implementation for getting file attributes
+}
+
+# Set File Attributes
+fn set_file_attributes(path: String, attributes: FileAttributes) {
+    // Implementation for setting file attributes
+}
+
+# File Structure
+struct File {
+    handle: Int,
+    mode: String
+}
+
+# File Attributes Structure
+struct FileAttributes {
+    size: Int,
+    created: DateTime,
+    modified: DateTime,
+    accessed: DateTime,
+    permissions: String
+}
+
+# DateTime Structure
+struct DateTime {
+    year: Int,
+    month: Int,
+    day: Int,
+    hour: Int,
+    minute: Int,
+    second: Int
+}

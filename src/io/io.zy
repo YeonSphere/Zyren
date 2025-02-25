@@ -1,0 +1,21 @@
+# Basic I/O Functions for Zyren
+
+# Custom printf function
+fn my_printf(fmt: String, ...) {
+    // Implementation for custom printf
+}
+
+# Get process ID
+fn get_process_id() -> Int {
+    // Implementation for getting process ID
+}
+
+# Initialize the kernel
+fn kernel_init() {
+    // Implementation for initializing the kernel
+}
+
+# Main function for the kernel
+fn main() -> Int {
+    // Implementation for main function
+}

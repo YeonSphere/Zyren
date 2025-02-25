@@ -1,0 +1,129 @@
+# Zyren Lexer
+
+# Token Types
+enum TokenType {
+    KEYWORD,
+    IDENTIFIER,
+    LITERAL,
+    OPERATOR,
+    PUNCTUATION,
+    COMMENT,
+    EOF
+}
+
+# Token Structure
+struct Token {
+    type: TokenType,
+    value: String
+}
+
+# Lexer State
+struct Lexer {
+    source: String,
+    position: Int,
+    current_char: Char
+}
+
+# Initialize Lexer
+fn init_lexer(source: String) -> Lexer {
+    return Lexer {
+        source: source,
+        position: 0,
+        current_char: source[0]
+    }
+}
+
+# Advance Lexer
+fn advance(lexer: Lexer) {
+    if lexer.position < lexer.source.length() {
+        lexer.position += 1
+        lexer.current_char = lexer.source[lexer.position]
+    } else {
+        lexer.current_char = '\0'
+    }
+}
+
+# Skip Whitespace
+fn skip_whitespace(lexer: Lexer) {
+    while lexer.current_char == ' ' || lexer.current_char == '\t' || lexer.current_char == '\n' {
+        advance(lexer)
+    }
+}
+
+# Get Next Token
+fn get_next_token(lexer: Lexer) -> Token {
+    skip_whitespace(lexer)
+
+    if lexer.current_char == '\0' {
+        return Token { type: TokenType.EOF, value: "" }
+    }
+
+    if is_letter(lexer.current_char) {
+        return identifier(lexer)
+    }
+
+    if is_digit(lexer.current_char) {
+        return number(lexer)
+    }
+
+    if lexer.current_char == '"' {
+        return string(lexer)
+    }
+
+    if lexer.current_char == '#' {
+        return comment(lexer)
+    }
+
+    return Token { type: TokenType.PUNCTUATION, value: lexer.current_char.to_string() }
+}
+
+# Identifier
+fn identifier(lexer: Lexer) -> Token {
+    let start = lexer.position
+    while is_letter(lexer.current_char) || is_digit(lexer.current_char) {
+        advance(lexer)
+    }
+    let value = lexer.source[start:lexer.position]
+    return Token { type: TokenType.IDENTIFIER, value: value }
+}
+
+# Number
+fn number(lexer: Lexer) -> Token {
+    let start = lexer.position
+    while is_digit(lexer.current_char) {
+        advance(lexer)
+    }
+    let value = lexer.source[start:lexer.position]
+    return Token { type: TokenType.LITERAL, value: value }
+}
+
+# String
+fn string(lexer: Lexer) -> Token {
+    let start = lexer.position
+    advance(lexer)
+    while lexer.current_char != '"' && lexer.current_char != '\0' {
+        advance(lexer)
+    }
+    advance(lexer)
+    let value = lexer.source[start:lexer.position]
+    return Token { type: TokenType.LITERAL, value: value }
+}
+
+# Comment
+fn comment(lexer: Lexer) -> Token {
+    let start = lexer.position
+    while lexer.current_char != '\n' && lexer.current_char != '\0' {
+        advance(lexer)
+    }
+    let value = lexer.source[start:lexer.position]
+    return Token { type: TokenType.COMMENT, value: value }
+}
+
+# Helper Functions
+fn is_letter(char: Char) -> Bool {
+    return (char >= 'a' && char <= 'z') || (char >= 'A' && char <= 'Z') || char == '_'
+}
+
+fn is_digit(char: Char) -> Bool {
+    return char >= '0' && char <= '9'
+}
